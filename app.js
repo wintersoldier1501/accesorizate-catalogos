@@ -308,8 +308,9 @@ function renderNextPage() {
     for (let i = startIdx; i < endIdx; i++) {
         const prod = filteredProducts[i];
         
-        const displaySubcat = prod.displaySubcategory || prod.subcategory;
-        // Render subcategory header if it changes (only when not searching)
+        // Only use displaySubcategory (like 'NUEVO') for headers, ignore raw subcategory
+        const displaySubcat = prod.displaySubcategory;
+        // Render header if it changes and it exists (only when not searching)
         if (searchQuery === '' && displaySubcat && displaySubcat !== lastSubcat) {
             lastSubcat = displaySubcat;
             
