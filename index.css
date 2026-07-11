@@ -82,6 +82,7 @@ header {
     width: auto;
     object-fit: contain;
     border-radius: 4px;
+    filter: brightness(0) invert(1);
 }
 
 .brand-title {
@@ -215,7 +216,7 @@ header {
     justify-content: space-between;
     gap: 1.5rem;
     box-shadow: var(--shadow-premium);
-    color: #2c2c2e;
+    color: #ffffff;
 }
 
 .info-content {
@@ -232,7 +233,7 @@ header {
 }
 
 .info-desc {
-    color: #4a4a4c;
+    color: rgba(255, 255, 255, 0.85);
     font-size: 0.9rem;
 }
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Administrador de Catálogos - Accesorizate</title>
-    <link rel="stylesheet" href="index.css?v=1.2">
+    <link rel="stylesheet" href="index.css?v=1.3">
     <style>
         /* Custom overrides and extensions for Admin layout */
         .admin-header {
@@ -326,6 +326,45 @@
             25% { transform: translateX(-6px); }
             75% { transform: translateX(6px); }
         }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 900px) {
+            .admin-header {
+                flex-direction: column;
+                gap: 1rem;
+                padding: 1rem;
+                text-align: center;
+            }
+            .admin-nav {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 0.5rem;
+            }
+            .stats-grid {
+                padding: 0 1rem;
+                gap: 1rem;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+            .admin-controls {
+                margin: 0 1rem 2rem 1rem;
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .control-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .table-container {
+                margin: 0 1rem 3rem 1rem;
+            }
+            .modal-container {
+                padding: 1.5rem !important;
+                width: 95% !important;
+            }
+            .form-grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
     </style>
 </head>
 <body class="admin-body">
@@ -361,7 +400,7 @@
         <nav class="admin-nav">
             <a href="mayoreo.html" class="nav-link" target="_blank">Catálogo Mayoreo</a>
             <a href="clientes.html" class="nav-link" target="_blank">Catálogo Clientes</a>
-            <a href="#" class="nav-link active">Admin Panel</a>
+            <a href="#" class="nav-link" onclick="firebase.auth().signOut().then(() => window.location.reload())" style="background-color: #dc3545; color: white; border: none;">Cerrar Sesión</a>
         </nav>
     </header>
 
@@ -453,99 +492,150 @@
 
     <!-- Form Modal (Add / Edit) -->
     <div class="modal-overlay" id="product-modal">
-        <div class="modal-container" style="max-width: 650px; padding: 2.5rem; background-color: #ffffff; color: #1a1a1a; border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.4); border: 1px solid var(--border-color); position: relative;">
+        <div class="modal-container" style="width: 95%; max-width: 950px; padding: 2.5rem; background-color: #ffffff; color: #1a1a1a; border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.4); border: 1px solid var(--border-color); position: relative;">
             <button class="modal-close" id="product-modal-close" style="color: #333333; top: 1rem; right: 1.5rem; position: absolute; font-size: 2rem;">&times;</button>
             <h3 class="brand-title" id="modal-heading" style="margin-bottom: 1.5rem; text-align: left; font-size: 1.6rem; color: #1a1a1a;">Agregar Producto</h3>
             
             <form id="product-form" onsubmit="event.preventDefault();">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="p-code">Código de Producto*</label>
-                        <input type="text" id="p-code" class="form-input" placeholder="Ej: AX1307" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="p-material">Material*</label>
-                        <select id="p-material" class="admin-select" style="width: 100%;" required>
-                            <option value="Acero Inoxidable">Acero Inoxidable (AX)</option>
-                            <option value="Chapa de Oro">Chapa de Oro (CH)</option>
-                            <option value="Chapa con Acero">Chapa con Acero (XC)</option>
-                            <option value="Aleación de Metales">Aleación de Metales (RT, DM)</option>
-                            <option value="Aluminio">Aluminio (LM)</option>
-                            <option value="Latón">Latón (LA)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="p-category">Categoría*</label>
-                        <select id="p-category" class="admin-select" style="width: 100%;" required>
-                            <option value="Collares">Collares</option>
-                            <option value="Aretes">Aretes</option>
-                            <option value="Piercings">Piercings</option>
-                            <option value="Anillos">Anillos</option>
-                            <option value="Pulseras">Pulseras</option>
-                            <option value="Llaveros">Llaveros</option>
-                            <option value="Accesorios para Niña">Accesorios para Niña</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="display: flex; flex-direction: column; gap: 0.5rem; justify-content: flex-end;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <input type="checkbox" id="p-is-personalized" style="width: 18px; height: 18px; cursor: pointer;">
-                            <label for="p-is-personalized" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Producto Personalizable (Grabado)</label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2.5rem;">
+                    
+                    <!-- LEFT COLUMN -->
+                    <div class="form-column-left">
+                        <h4 style="margin-bottom: 1rem; color: var(--gold-primary); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Datos Generales</h4>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="p-code">Código de Producto*</label>
+                                <input type="text" id="p-code" class="form-input" placeholder="Ej: AX1307" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="p-material">Material*</label>
+                                <select id="p-material" class="admin-select" style="width: 100%;" required>
+                                    <option value="Acero Inoxidable">Acero Inoxidable (AX)</option>
+                                    <option value="Chapa de Oro">Chapa de Oro (CH)</option>
+                                    <option value="Chapa con Acero">Chapa con Acero (XC)</option>
+                                    <option value="Aleación de Metales">Aleación de Metales (RT, DM)</option>
+                                    <option value="Aluminio">Aluminio (LM)</option>
+                                    <option value="Latón">Latón (LA)</option>
+                                </select>
+                            </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <input type="checkbox" id="p-is-mens" style="width: 18px; height: 18px; cursor: pointer;">
-                            <label for="p-is-mens" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Mostrar en categoría Hombre</label>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="p-category">Categoría*</label>
+                                <select id="p-category" class="admin-select" style="width: 100%;" required>
+                                    <option value="Collares">Collares</option>
+                                    <option value="Aretes">Aretes</option>
+                                    <option value="Piercings">Piercings</option>
+                                    <option value="Anillos">Anillos</option>
+                                    <option value="Pulseras">Pulseras</option>
+                                    <option value="Llaveros">Llaveros</option>
+                                    <option value="Accesorios para Niña">Accesorios para Niña</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="display: flex; flex-direction: column; gap: 0.5rem; justify-content: flex-end;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="p-is-personalized" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="p-is-personalized" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Producto Personalizable (Grabado)</label>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="p-is-mens" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="p-is-mens" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Mostrar en categoría Hombre</label>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="p-price-mayoreo">Precio de Mayoreo ($)*</label>
-                        <input type="number" id="p-price-mayoreo" class="form-input" placeholder="Ej: 98" min="0" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="p-price-cliente">Precio al Público ($)</label>
-                        <input type="number" id="p-price-cliente" class="form-input" placeholder="Dejar vacío para el doble (2x)">
-                    </div>
-                </div>
-
-                <div class="form-group" style="margin-bottom: 1.2rem;">
-                    <label for="p-details">Detalles / Descripción adicional</label>
-                    <textarea id="p-details" class="form-textarea" placeholder="Ej: Incluye grabado de nombres..."></textarea>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" id="p-multi-aritos" style="width: 18px; height: 18px; cursor: pointer;">
-                    <label for="p-multi-aritos" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">
-                        ¿Soporta múltiples aritos grabados? (Base de 2 aros, máx 5, +$49 extra)
-                    </label>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="checkbox" id="p-requires-initial" style="width: 18px; height: 18px; cursor: pointer;">
-                    <label for="p-requires-initial" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">
-                        ¿Es collar de inicial? (Pedirá elegir una letra A-Z)
-                    </label>
-                </div>
-
-                <!-- Image upload drag & drop -->
-                <div class="form-group" style="margin-bottom: 1.5rem;">
-                    <label>Imágenes del Producto (Puedes subir varias)</label>
-                    <div class="image-upload-area" id="image-dropzone" style="min-height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 1.5rem;">
-                        <span id="dropzone-text" style="color: var(--text-muted); font-size: 0.9rem;">Arrastra aquí una o varias fotos, o haz clic para subir</span>
-                        <input type="file" id="p-image-file" accept="image/*" style="display: none;" multiple>
-                        <div class="image-preview-container" id="image-preview-container" style="display: none; flex-wrap: wrap; justify-content: center; gap: 1rem; margin-top: 1rem; width: 100%;">
-                            <!-- Previews will be injected dynamically -->
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="p-price-mayoreo">Precio de Mayoreo ($)*</label>
+                                <input type="number" id="p-price-mayoreo" class="form-input" placeholder="Ej: 98" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="p-price-cliente">Precio al Público ($)</label>
+                                <input type="number" id="p-price-cliente" class="form-input" placeholder="Doble (2x)">
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1rem;">
-                    <button type="button" class="action-btn" id="modal-cancel-btn" style="padding: 0.7rem 1.5rem;">Cancelar</button>
-                    <button type="submit" class="add-product-btn" id="modal-save-btn" style="padding: 0.7rem 1.8rem;">Guardar Producto</button>
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="p-details">Detalles / Descripción adicional</label>
+                            <textarea id="p-details" class="form-textarea" placeholder="Ej: Incluye grabado de nombres..." rows="2"></textarea>
+                        </div>
+                        
+                        <h4 style="margin-bottom: 1rem; color: var(--gold-primary); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Opciones Adicionales</h4>
+                        
+                        <div class="personalization-checks" style="display: flex; flex-direction: column; gap: 1rem; background: var(--bg-hover); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                            
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="p-multi-aritos" style="width: 18px; height: 18px; cursor: pointer;" onchange="document.getElementById('aritos-price-container').style.display = this.checked ? 'flex' : 'none'">
+                                    <label for="p-multi-aritos" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Soporta múltiples aritos grabados?</label>
+                                </div>
+                                <div class="form-grid" id="aritos-price-container" style="margin-top: 0.5rem; display: none;">
+                                    <div class="form-group" style="margin: 0;"><input type="number" id="p-aritos-price-mayoreo" class="form-input" placeholder="Precio Mayoreo" style="padding: 0.4rem;"></div>
+                                    <div class="form-group" style="margin: 0;"><input type="number" id="p-aritos-price-cliente" class="form-input" placeholder="Precio Público" style="padding: 0.4rem;"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="p-multi-plaquitas" style="width: 18px; height: 18px; cursor: pointer;" onchange="document.getElementById('plaquitas-price-container').style.display = this.checked ? 'flex' : 'none'">
+                                    <label for="p-multi-plaquitas" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Soporta múltiples plaquitas grabadas?</label>
+                                </div>
+                                <div class="form-grid" id="plaquitas-price-container" style="margin-top: 0.5rem; display: none;">
+                                    <div class="form-group" style="margin: 0;"><input type="number" id="p-plaquitas-price-mayoreo" class="form-input" placeholder="Precio Mayoreo" style="padding: 0.4rem;"></div>
+                                    <div class="form-group" style="margin: 0;"><input type="number" id="p-plaquitas-price-cliente" class="form-input" placeholder="Precio Público" style="padding: 0.4rem;"></div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="p-allows-extra-kids" style="width: 18px; height: 18px; cursor: pointer;" onchange="document.getElementById('extra-kid-price-container').style.display = this.checked ? 'flex' : 'none'">
+                                    <label for="p-allows-extra-kids" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Permite agregar niños/niñas extra?</label>
+                                </div>
+                                <div class="form-grid" id="extra-kid-price-container" style="margin-top: 0.5rem; display: none;">
+                                    <div class="form-group" style="margin: 0;"><input type="number" id="p-extra-kid-price-mayoreo" class="form-input" placeholder="Precio Mayoreo" style="padding: 0.4rem;"></div>
+                                    <div class="form-group" style="margin: 0;"><input type="number" id="p-extra-kid-price-cliente" class="form-input" placeholder="Precio Público" style="padding: 0.4rem;"></div>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="p-requires-initial" style="width: 18px; height: 18px; cursor: pointer;">
+                                <label for="p-requires-initial" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Es collar de inicial? (Pedirá elegir A-Z)</label>
+                            </div>
+                        </div>
+
+                    </div> <!-- END LEFT COLUMN -->
+
+                    <!-- RIGHT COLUMN -->
+                    <div class="form-column-right">
+                        <h4 style="margin-bottom: 1rem; color: var(--gold-primary); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Imágenes del Producto</h4>
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <div class="image-upload-area" id="image-dropzone" style="min-height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 1.5rem;">
+                                <span id="dropzone-text" style="color: var(--text-muted); font-size: 0.9rem;">Arrastra aquí una o varias fotos, o haz clic para subir</span>
+                                <input type="file" id="p-image-file" accept="image/*" style="display: none;" multiple>
+                                <div class="image-preview-container" id="image-preview-container" style="display: none; flex-wrap: wrap; justify-content: center; gap: 1rem; margin-top: 1rem; width: 100%;">
+                                    <!-- Previews will be injected dynamically -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Color Variants Section -->
+                        <h4 style="margin-bottom: 1rem; margin-top: 1.5rem; color: var(--gold-primary); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Variantes de Color</h4>
+                        <div class="form-group" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-hover); border-radius: 8px; border: 1px dashed var(--border-color);">
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Agrega diferentes colores para que el cliente pueda seleccionarlos. Si agregas variantes, la primera foto de arriba será ignorada en la selección principal.</p>
+                            
+                            <div id="variants-container" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem;">
+                                <!-- Variant rows injected here -->
+                            </div>
+                            
+                            <button type="button" class="action-btn" id="add-variant-btn" style="width: 100%; padding: 0.5rem; background: transparent; border: 1px solid var(--gold-primary); color: var(--gold-primary);">+ Agregar Variante de Color</button>
+                        </div>
+                    </div> <!-- END RIGHT COLUMN -->
+                </div> <!-- END GRID 2 COLUMNS -->
+
+                <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <button type="button" class="action-btn" id="modal-cancel-btn" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-primary);">Cancelar</button>
+                    <button type="submit" class="action-btn" id="modal-save-btn">Guardar Producto</button>
                 </div>
             </form>
         </div>
@@ -595,29 +685,13 @@
             document.getElementById('login-overlay').style.display = 'none';
         }
 
-        // SHA-256 Hashing helper
-        async function sha256(message) {
-            const msgBuffer = new TextEncoder().encode(message);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            return hashHex;
-        }
-
         // Handle Login Submission
         async function handleLogin() {
             const userVal = document.getElementById('login-username').value.trim();
             const passVal = document.getElementById('login-password').value;
             const errorDiv = document.getElementById('login-error');
 
-            const userHash = await sha256(userVal);
-            const passHash = await sha256(passVal);
-
-            // Stored hashes
-            const expectedUserHash = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"; // 'admin'
-            const expectedPassHash = "5918d4b9a705be235db1b59861ed42f7e42e97da6435dcff7d9336fb1626bc08"; // 'accesorizate2026'
-
-            if (userHash === expectedUserHash && passHash === expectedPassHash) {
+            if (userVal === 'admin' && passVal === 'accesorizate2026') {
                 sessionStorage.setItem('adminAuthorized', 'true');
                 // Smooth fade out
                 const overlay = document.getElementById('login-overlay');
@@ -657,6 +731,11 @@
         const formPriceCliente = document.getElementById('p-price-cliente');
         const formDetails = document.getElementById('p-details');
         const formMultiAritos = document.getElementById('p-multi-aritos');
+        const formAritosPriceMayoreo = document.getElementById('p-aritos-price-mayoreo');
+        const formAritosPriceCliente = document.getElementById('p-aritos-price-cliente');
+        const formMultiPlaquitas = document.getElementById('p-multi-plaquitas');
+        const formPlaquitasPriceMayoreo = document.getElementById('p-plaquitas-price-mayoreo');
+        const formPlaquitasPriceCliente = document.getElementById('p-plaquitas-price-cliente');
         const formRequiresInitial = document.getElementById('p-requires-initial');
         const fileInput = document.getElementById('p-image-file');
         const dropzone = document.getElementById('image-dropzone');
@@ -982,8 +1061,21 @@
             saveForm.reset();
             formCode.disabled = false;
             formMultiAritos.checked = false;
+            formAritosPriceMayoreo.value = '';
+            formAritosPriceCliente.value = '';
+            document.getElementById('aritos-price-container').style.display = 'none';
+            formMultiPlaquitas.checked = false;
+            formPlaquitasPriceMayoreo.value = '';
+            formPlaquitasPriceCliente.value = '';
+            document.getElementById('plaquitas-price-container').style.display = 'none';
             formRequiresInitial.checked = false;
+            document.getElementById('p-allows-extra-kids').checked = false;
+            document.getElementById('p-extra-kid-price-mayoreo').value = '';
+            document.getElementById('p-extra-kid-price-cliente').value = '';
+            document.getElementById('extra-kid-price-container').style.display = 'none';
             document.getElementById('modal-heading').innerText = 'Agregar Nuevo Producto';
+            colorVariants = [];
+            renderVariants();
             renderImagePreviews();
             modal.classList.add('active');
         }
@@ -1009,7 +1101,19 @@
             formPriceCliente.placeholder = (prod.price_mayoreo || 0) * 2;
             formDetails.value = prod.details || '';
             formMultiAritos.checked = prod.multi_aritos === true;
+            formAritosPriceMayoreo.value = prod.aritos_price_mayoreo || '';
+            formAritosPriceCliente.value = prod.aritos_price_cliente || '';
+            document.getElementById('aritos-price-container').style.display = prod.multi_aritos ? 'flex' : 'none';
+            
+            formMultiPlaquitas.checked = prod.multi_plaquitas === true;
+            formPlaquitasPriceMayoreo.value = prod.plaquitas_price_mayoreo || '';
+            formPlaquitasPriceCliente.value = prod.plaquitas_price_cliente || '';
+            document.getElementById('plaquitas-price-container').style.display = prod.multi_plaquitas ? 'flex' : 'none';
             formRequiresInitial.checked = prod.requires_initial === true;
+            document.getElementById('p-allows-extra-kids').checked = prod.allows_extra_kids === true;
+            document.getElementById('p-extra-kid-price-mayoreo').value = prod.extra_kid_price_mayoreo || '';
+            document.getElementById('p-extra-kid-price-cliente').value = prod.extra_kid_price_cliente || '';
+            document.getElementById('extra-kid-price-container').style.display = prod.allows_extra_kids ? 'block' : 'none';
 
             document.getElementById('modal-heading').innerText = `Editar Producto: ${code}`;
 
@@ -1020,6 +1124,13 @@
             } else if (prod.has_image && prod.image) {
                 selectedImages.push({ type: 'existing', url: prod.image });
             }
+
+            if (prod.color_variants && Array.isArray(prod.color_variants)) {
+                colorVariants = prod.color_variants.map(v => ({ name: v.name, type: 'existing', url: v.image, in_stock: v.in_stock !== false }));
+            } else {
+                colorVariants = [];
+            }
+            renderVariants();
 
             renderImagePreviews();
             modal.classList.add('active');
@@ -1050,6 +1161,111 @@
                 };
                 reader.readAsDataURL(file);
             });
+        }
+
+        let colorVariants = [];
+        const variantsContainer = document.getElementById('variants-container');
+        const addVariantBtn = document.getElementById('add-variant-btn');
+
+        function renderVariants() {
+            variantsContainer.innerHTML = '';
+            colorVariants.forEach((variant, idx) => {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.gap = '0.5rem';
+                row.style.alignItems = 'center';
+                row.style.flexWrap = 'wrap';
+                
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.className = 'form-input';
+                nameInput.placeholder = 'Color (ej: Dorado)';
+                nameInput.value = variant.name || '';
+                nameInput.style.flex = '1';
+                nameInput.oninput = (e) => { variant.name = e.target.value; };
+                
+                const stockWrapper = document.createElement('label');
+                stockWrapper.style.display = 'flex';
+                stockWrapper.style.alignItems = 'center';
+                stockWrapper.style.gap = '0.3rem';
+                stockWrapper.style.fontSize = '0.85rem';
+                stockWrapper.style.cursor = 'pointer';
+                stockWrapper.style.color = 'var(--text-primary)';
+                
+                const stockCheck = document.createElement('input');
+                stockCheck.type = 'checkbox';
+                // default true if undefined
+                stockCheck.checked = variant.in_stock !== false; 
+                stockCheck.onchange = (e) => { variant.in_stock = e.target.checked; };
+                
+                stockWrapper.appendChild(stockCheck);
+                stockWrapper.appendChild(document.createTextNode('Disponible'));
+
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/*';
+                fileInput.style.display = 'none';
+                
+                const fileBtn = document.createElement('button');
+                fileBtn.type = 'button';
+                fileBtn.className = 'action-btn';
+                fileBtn.style.padding = '0.5rem 1rem';
+                fileBtn.style.whiteSpace = 'nowrap';
+                fileBtn.innerText = variant.file || variant.url ? 'Foto Lista' : 'Subir Foto';
+                fileBtn.onclick = () => fileInput.click();
+
+                fileInput.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        variant.file = file;
+                        variant.type = 'new';
+                        fileBtn.innerText = file.name.length > 10 ? file.name.substring(0,10)+'...' : file.name;
+                        
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            variant.dataUrl = ev.target.result;
+                            renderVariants(); 
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'action-btn';
+                deleteBtn.style.background = '#dc3545';
+                deleteBtn.style.padding = '0.5rem 1rem';
+                deleteBtn.innerText = 'X';
+                deleteBtn.onclick = () => {
+                    colorVariants.splice(idx, 1);
+                    renderVariants();
+                };
+
+                row.appendChild(nameInput);
+                row.appendChild(stockWrapper);
+                row.appendChild(fileBtn);
+                row.appendChild(fileInput);
+                
+                if (variant.url || variant.dataUrl) {
+                    const preview = document.createElement('img');
+                    preview.src = variant.type === 'existing' ? variant.url : variant.dataUrl;
+                    preview.style.width = '35px';
+                    preview.style.height = '35px';
+                    preview.style.objectFit = 'cover';
+                    preview.style.borderRadius = '4px';
+                    row.appendChild(preview);
+                }
+                
+                row.appendChild(deleteBtn);
+                variantsContainer.appendChild(row);
+            });
+        }
+
+        if(addVariantBtn) {
+            addVariantBtn.onclick = () => {
+                colorVariants.push({ name: '', type: 'empty', in_stock: true });
+                renderVariants();
+            };
         }
 
         // Render preview cards for both new and existing images
@@ -1132,7 +1348,15 @@
             const priceMayoreo = parseInt(formPriceMayoreo.value);
             let priceCliente = parseInt(formPriceCliente.value);
             const multiAritos = formMultiAritos.checked;
+            const aritosPriceMayoreo = parseFloat(formAritosPriceMayoreo.value) || 0;
+            const aritosPriceCliente = parseFloat(formAritosPriceCliente.value) || 0;
+            const multiPlaquitas = formMultiPlaquitas.checked;
+            const plaquitasPriceMayoreo = parseFloat(formPlaquitasPriceMayoreo.value) || 0;
+            const plaquitasPriceCliente = parseFloat(formPlaquitasPriceCliente.value) || 0;
             const requiresInitial = formRequiresInitial.checked;
+            const allowsExtraKids = document.getElementById('p-allows-extra-kids').checked;
+            const extraKidPriceMayoreo = parseInt(document.getElementById('p-extra-kid-price-mayoreo').value) || 0;
+            const extraKidPriceCliente = parseInt(document.getElementById('p-extra-kid-price-cliente').value) || 0;
 
             if (isNaN(priceCliente)) {
                 priceCliente = priceMayoreo * 2; // Auto double if empty
@@ -1151,86 +1375,81 @@
             let imageUrls = selectedImages.filter(img => img.type === 'existing').map(img => img.url);
             const newFiles = selectedImages.filter(img => img.type === 'new');
 
-            // Handle Image Upload if files selected
-            if (newFiles.length > 0) {
+            // Helper to upload files
+            async function uploadFilesHelper(filesToUpload, prefixStr = '') {
+                if (filesToUpload.length === 0) return [];
+                
                 if (window.imgbbApiKey) {
-                    showToast('Subiendo fotos a la nube (Imgbb)...', 'success');
-                    try {
-                        const uploadPromises = newFiles.map(async (img) => {
-                            const formData = new FormData();
-                            formData.append('key', window.imgbbApiKey);
-                            formData.append('image', img.file);
-                            
-                            const response = await fetch('https://api.imgbb.com/1/upload', {
-                                method: 'POST',
-                                body: formData
-                            });
-                            
-                            if (!response.ok) {
-                                throw new Error(`HTTP error! status: ${response.status}`);
-                            }
-                            
-                            const resData = await response.json();
-                            if (resData.success) {
-                                return resData.data.url;
-                            } else {
-                                throw new Error(resData.error.message || 'Error al subir a Imgbb');
-                            }
-                        });
-                        
-                        const uploadedUrls = await Promise.all(uploadPromises);
-                        imageUrls = imageUrls.concat(uploadedUrls);
-                        showToast('Fotos subidas a la nube con éxito.', 'success');
-                    } catch (uploadErr) {
-                        console.error("Imgbb upload failed:", uploadErr);
-                        showToast(`Error al subir fotos a Imgbb: ${uploadErr.message}`, 'error');
-                        return; // Stop execution if upload fails
-                    }
-                } else if (window.storage) {
-                    showToast('Subiendo fotos a Firebase Storage...', 'success');
-                    try {
-                        const uploadPromises = newFiles.map(async (img, idx) => {
-                            const timestamp = Date.now();
-                            const ext = img.file.name.split('.').pop() || 'webp';
-                            const storageRef = window.storage.ref().child(`products/${code}/${code}_${timestamp}_${idx}.${ext}`);
-                            
-                            const snapshot = await storageRef.put(img.file);
-                            const downloadUrl = await snapshot.ref.getDownloadURL();
-                            return downloadUrl;
-                        });
-                        
-                        const uploadedUrls = await Promise.all(uploadPromises);
-                        imageUrls = imageUrls.concat(uploadedUrls);
-                        showToast('Fotos subidas a Firebase con éxito.', 'success');
-                    } catch (uploadErr) {
-                        console.error("Firebase Storage upload failed:", uploadErr);
-                        showToast(`Error al subir fotos a Firebase: ${uploadErr.message}`, 'error');
-                        return; // Stop execution if upload fails
-                    }
-                } else {
-                    // Fallback to local server upload
-                    const formData = new FormData();
-                    formData.append('code', code);
-                    newFiles.forEach(img => {
-                        formData.append('images', img.file);
-                    });
-
-                    try {
-                        const response = await fetch('http://localhost:8000/api/upload', {
-                            method: 'POST',
-                            body: formData
-                        });
+                    const uploadPromises = filesToUpload.map(async (img) => {
+                        const formData = new FormData();
+                        formData.append('key', window.imgbbApiKey);
+                        formData.append('image', img.file);
+                        const response = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
                         const resData = await response.json();
-                        if (resData.status === 'success') {
-                            imageUrls = imageUrls.concat(resData.image_urls);
-                        } else {
-                            throw new Error(resData.message || 'Error al subir fotos');
-                        }
-                    } catch (err) {
-                        showToast(`Error al subir imágenes locales: ${err.message}. Se guardarán los demás cambios.`, 'error');
-                    }
+                        if (resData.success) return resData.data.url;
+                        throw new Error(resData.error.message || 'Error al subir a Imgbb');
+                    });
+                    return await Promise.all(uploadPromises);
+                } else if (window.storage) {
+                    const uploadPromises = filesToUpload.map(async (img, idx) => {
+                        const timestamp = Date.now();
+                        const ext = img.file.name.split('.').pop() || 'webp';
+                        const storageRef = window.storage.ref().child(`products/${code}/${code}_${prefixStr}${timestamp}_${idx}.${ext}`);
+                        const snapshot = await storageRef.put(img.file);
+                        return await snapshot.ref.getDownloadURL();
+                    });
+                    return await Promise.all(uploadPromises);
+                } else {
+                    const formData = new FormData();
+                    formData.append('code', code + prefixStr);
+                    filesToUpload.forEach(img => formData.append('images', img.file));
+                    const response = await fetch('http://localhost:8000/api/upload', { method: 'POST', body: formData });
+                    const resData = await response.json();
+                    if (resData.status === 'success') return resData.image_urls;
+                    throw new Error(resData.message || 'Error al subir fotos locales');
                 }
             }
+
+            // Upload main images
+            if (newFiles.length > 0) {
+                showToast('Subiendo fotos principales...', 'success');
+                try {
+                    const uploadedUrls = await uploadFilesHelper(newFiles, 'main_');
+                    imageUrls = imageUrls.concat(uploadedUrls);
+                    showToast('Fotos principales subidas.', 'success');
+                } catch (err) {
+                    console.error("Main image upload failed:", err);
+                    showToast(`Error al subir fotos principales: ${err.message}`, 'error');
+                    return;
+                }
+            }
+
+            // Upload variant images
+            const newVariants = colorVariants.filter(v => v.type === 'new' && v.file);
+            if (newVariants.length > 0) {
+                showToast('Subiendo fotos de variantes...', 'success');
+                try {
+                    const uploadedVariantUrls = await uploadFilesHelper(newVariants, 'var_');
+                    // Map back to variants
+                    let urlIdx = 0;
+                    colorVariants.forEach(v => {
+                        if (v.type === 'new' && v.file) {
+                            v.url = uploadedVariantUrls[urlIdx++];
+                            v.type = 'existing';
+                            delete v.file;
+                            delete v.dataUrl;
+                        }
+                    });
+                    showToast('Fotos de variantes subidas.', 'success');
+                } catch (err) {
+                    console.error("Variant image upload failed:", err);
+                    showToast(`Error al subir variantes: ${err.message}`, 'error');
+                    return;
+                }
+            }
+
+            // Filter out empty variants
+            const finalVariants = colorVariants.filter(v => v.name && v.url).map(v => ({ name: v.name, image: v.url, in_stock: v.in_stock !== false }));
 
             const hasImage = imageUrls.length > 0;
             const mainImage = imageUrls[0] || '';
@@ -1251,13 +1470,27 @@
                         price_cliente: priceCliente,
                         details,
                         multi_aritos: multiAritos,
+                        aritos_price_mayoreo: aritosPriceMayoreo,
+                        aritos_price_cliente: aritosPriceCliente,
+                        multi_plaquitas: multiPlaquitas,
+                        plaquitas_price_mayoreo: plaquitasPriceMayoreo,
+                        plaquitas_price_cliente: plaquitasPriceCliente,
+                        aritos_price_mayoreo: aritosPriceMayoreo,
+                        aritos_price_cliente: aritosPriceCliente,
+                        multi_plaquitas: multiPlaquitas,
+                        plaquitas_price_mayoreo: plaquitasPriceMayoreo,
+                        plaquitas_price_cliente: plaquitasPriceCliente,
                         requires_initial: requiresInitial,
+                        allows_extra_kids: allowsExtraKids,
+                        extra_kid_price_mayoreo: extraKidPriceMayoreo,
+                        extra_kid_price_cliente: extraKidPriceCliente,
                         updated_at: Date.now(),
                         active: existingProd.active !== false,
                         created_at: existingProd.created_at || Date.now(),
                         has_image: hasImage,
                         image: mainImage,
-                        images: imageUrls
+                        images: imageUrls,
+                        color_variants: finalVariants
                     };
                     targetProductObj = products[index];
                 }
@@ -1273,10 +1506,19 @@
                     price_cliente: priceCliente,
                     details,
                     multi_aritos: multiAritos,
+                    aritos_price_mayoreo: aritosPriceMayoreo,
+                    aritos_price_cliente: aritosPriceCliente,
+                    multi_plaquitas: multiPlaquitas,
+                    plaquitas_price_mayoreo: plaquitasPriceMayoreo,
+                    plaquitas_price_cliente: plaquitasPriceCliente,
                     requires_initial: requiresInitial,
+                    allows_extra_kids: allowsExtraKids,
+                    extra_kid_price_mayoreo: extraKidPriceMayoreo,
+                    extra_kid_price_cliente: extraKidPriceCliente,
                     has_image: hasImage,
                     image: mainImage,
                     images: imageUrls,
+                    color_variants: finalVariants,
                     active: true,
                     created_at: Date.now()
                 };

@@ -171,7 +171,7 @@ function setupEventListeners() {
     elements.cartCloseBtn.addEventListener('click', toggleCartDrawer);
     
     // Checkout Button
-    elements.checkoutBtn.addEventListener('click', handleCheckout);
+    if (elements.checkoutBtn) elements.checkoutBtn.addEventListener('click', handleCheckout);
     
     // Image Modal Close
     elements.modalClose.addEventListener('click', closeModal);
@@ -384,14 +384,28 @@ function createProductCard(product) {
     
     // Add Click Listeners
     const imgContainer = card.querySelector('.image-container');
+    const mainImg = card.querySelector('.product-image');
+    
+    const activeVariants = (product.color_variants || []).filter(v => v.in_stock !== false);
+    if (activeVariants.length > 1) {
+        // Find a different active variant image to use for hover
+        const hoverVar = activeVariants.find(v => v.image && v.image !== imageSrc) || activeVariants[1];
+        if (hoverVar && hoverVar.image) {
+            const hoverSrc = hoverVar.image;
+            imgContainer.addEventListener('mouseenter', () => { mainImg.src = hoverSrc; });
+            imgContainer.addEventListener('mouseleave', () => { mainImg.src = imageSrc; });
+        }
+    }
+    
     imgContainer.addEventListener('click', () => openModal(product));
     
     const addToCartBtn = card.querySelector('.add-to-cart-btn');
     addToCartBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        const hasVariants = product.color_variants && product.color_variants.length > 0;
         const isPersonalized = product.is_personalized === true || (['Collares', 'Llaveros'].includes(product.category) && product.subcategory === 'Personalizados') ||
                                (product.details && product.details.toLowerCase().includes('graba')) ||
-                               product.multi_aritos === true || product.requires_initial === true;
+                               product.multi_aritos === true || product.multi_plaquitas === true || product.requires_initial === true || hasVariants;
         
         if (isPersonalized) {
             openModal(product);
@@ -418,16 +432,32 @@ function createProductCard(product) {
 // Render dynamic customization fields based on product settings
 function renderCustomizationFields(product, price, customSection) {
     const isMultiAritos = product.multi_aritos === true;
+    const isMultiPlaquitas = product.multi_plaquitas === true;
     
-    if (isMultiAritos) {
+    if (isMultiAritos || isMultiPlaquitas) {
+        const itemType = isMultiAritos ? 'Aros' : 'Plaquitas';
+        const itemTypeSingular = isMultiAritos ? 'Aro' : 'Plaquita';
+        const maxItems = 5;
+        const baseItems = isMultiAritos ? 2 : 1;
+        const extraPriceMayoreo = isMultiAritos ? (product.aritos_price_mayoreo || 0) : (product.plaquitas_price_mayoreo || 0);
+        const extraPriceCliente = isMultiAritos ? (product.aritos_price_cliente || 0) : (product.plaquitas_price_cliente || 0);
+        const unitExtraPrice = mode === 'mayoreo' ? extraPriceMayoreo : extraPriceCliente;
+
+        let optionsHtml = '';
+        for (let i = baseItems; i <= maxItems; i++) {
+            if (i === baseItems) {
+                optionsHtml += `<option value="${i}">${i} ${itemType} (Incluidos en la compra)</option>`;
+            } else {
+                const extraCount = i - baseItems;
+                optionsHtml += `<option value="${i}">${i} ${itemType} (${extraCount} ${itemTypeSingular} Extra +$${extraCount * unitExtraPrice})</option>`;
+            }
+        }
+        
         customSection.innerHTML = `
             <div class="custom-field">
-                <label for="aritos-count" style="font-weight: 600; color: var(--gold-primary);">Cantidad de Aros:</label>
+                <label for="aritos-count" style="font-weight: 600; color: var(--gold-primary);">Cantidad de ${itemType}:</label>
                 <select id="aritos-count" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 1rem; width: 100%; cursor: pointer;">
-                    <option value="2">2 Aros (Incluidos en la compra)</option>
-                    <option value="3">3 Aros (1 Aro Extra +$49)</option>
-                    <option value="4">4 Aros (2 Aros Extras +$98)</option>
-                    <option value="5">5 Aros (3 Aros Extras +$147)</option>
+                    ${optionsHtml}
                 </select>
             </div>
             <div id="aritos-inputs-container" style="display: flex; flex-direction: column; gap: 0.8rem; margin: 0.8rem 0;"></div>
@@ -458,7 +488,6 @@ function renderCustomizationFields(product, price, customSection) {
         function updateAritosInputs() {
             const count = parseInt(aritosCountSelect.value);
             
-            // Capture existing input values to avoid losing what the user typed
             const existingValues = [];
             const inputElements = aritosInputsContainer.querySelectorAll('input');
             inputElements.forEach(inp => {
@@ -467,9 +496,9 @@ function renderCustomizationFields(product, price, customSection) {
             
             aritosInputsContainer.innerHTML = '';
             for (let i = 1; i <= count; i++) {
-                const isExtra = i > 2;
-                const labelText = isExtra ? `Texto Grabado Aro ${i} (Aro Extra +$49):` : `Texto Grabado Aro ${i} (Incluido):`;
-                const placeholder = `Nombre o iniciales para el aro ${i}...`;
+                const isExtra = i > baseItems;
+                const labelText = isExtra ? `Texto Grabado ${itemTypeSingular} ${i} (${itemTypeSingular} Extra +$${unitExtraPrice}):` : `Texto Grabado ${itemTypeSingular} ${i} (Incluido):`;
+                const placeholder = `Nombre o iniciales para ${itemTypeSingular.toLowerCase()} ${i}...`;
                 const val = existingValues[i - 1] || '';
                 
                 const fieldDiv = document.createElement('div');
@@ -482,9 +511,8 @@ function renderCustomizationFields(product, price, customSection) {
                 aritosInputsContainer.appendChild(fieldDiv);
             }
             
-            // Update dynamic price display in modal title
-            const extraPrice = (count - 2) * 49;
-            elements.modalTitle.textContent = `${getProductLabel(product)} - $${price + extraPrice}`;
+            const extraPriceTotal = (count - baseItems) * unitExtraPrice;
+            elements.modalTitle.textContent = `${getProductLabel(product)} - $${price + extraPriceTotal}`;
         }
         
         aritosCountSelect.addEventListener('change', updateAritosInputs);
@@ -570,6 +598,64 @@ function renderCustomizationFields(product, price, customSection) {
     }
 }
 
+function renderExtraKidsFields(product, price, customSection) {
+    const extraPriceMayoreo = product.extra_kid_price_mayoreo || 0;
+    const extraPriceCliente = product.extra_kid_price_cliente || 0;
+    const extraPrice = mode === 'mayoreo' ? extraPriceMayoreo : extraPriceCliente;
+    
+    const extraDiv = document.createElement('div');
+    extraDiv.style.marginTop = '1rem';
+    extraDiv.style.paddingTop = '1rem';
+    extraDiv.style.borderTop = '1px solid var(--border-color)';
+    
+    const optionsBoys = Array.from({length: 6}, (_, i) => `<option value="${i}">${i} niño${i!==1?'s':''} ${i>0 ? '(+$' + (i*extraPrice) + ')' : ''}</option>`).join('');
+    const optionsGirls = Array.from({length: 6}, (_, i) => `<option value="${i}">${i} niña${i!==1?'s':''} ${i>0 ? '(+$' + (i*extraPrice) + ')' : ''}</option>`).join('');
+    
+    extraDiv.innerHTML = `
+        <div style="font-weight: 600; color: var(--gold-primary); margin-bottom: 0.8rem; font-size: 0.95rem;">
+            Agregar Dijes Extra (+$${extraPrice} c/u):
+        </div>
+        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+            <div style="flex: 1;">
+                <label for="extra-boys" style="font-size: 0.8rem; color: #ccc;">Niños extra:</label>
+                <select id="extra-boys" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.9rem; width: 100%; cursor: pointer; background: var(--bg-card); color: var(--text-primary);">
+                    ${optionsBoys}
+                </select>
+            </div>
+            <div style="flex: 1;">
+                <label for="extra-girls" style="font-size: 0.8rem; color: #ccc;">Niñas extra:</label>
+                <select id="extra-girls" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.9rem; width: 100%; cursor: pointer; background: var(--bg-card); color: var(--text-primary);">
+                    ${optionsGirls}
+                </select>
+            </div>
+        </div>
+    `;
+    
+    customSection.appendChild(extraDiv);
+    
+    const boysSelect = extraDiv.querySelector('#extra-boys');
+    const girlsSelect = extraDiv.querySelector('#extra-girls');
+    
+    const updateTitlePrice = () => {
+        const extraB = parseInt(boysSelect.value) || 0;
+        const extraG = parseInt(girlsSelect.value) || 0;
+        let baseExtra = 0;
+        const count = parseInt(document.getElementById('aritos-count')?.value || (product.multi_aritos ? 2 : 1));
+        if (product.multi_aritos === true) {
+            const unit = mode === 'mayoreo' ? (product.aritos_price_mayoreo||0) : (product.aritos_price_cliente||0);
+            baseExtra = (count - 2) * unit;
+        } else if (product.multi_plaquitas === true) {
+            const unit = mode === 'mayoreo' ? (product.plaquitas_price_mayoreo||0) : (product.plaquitas_price_cliente||0);
+            baseExtra = (count - 1) * unit;
+        }
+        const total = price + baseExtra + ((extraB + extraG) * extraPrice);
+        elements.modalTitle.textContent = `${getProductLabel(product)} - $${total}`;
+    };
+    
+    boysSelect.addEventListener('change', updateTitlePrice);
+    girlsSelect.addEventListener('change', updateTitlePrice);
+}
+
 // Open Lightbox Modal for a product
 function openModal(product) {
     const price = mode === 'mayoreo' ? product.price_mayoreo : product.price_cliente;
@@ -602,6 +688,7 @@ function openModal(product) {
         
         const carouselImg = document.createElement('img');
         carouselImg.className = 'modal-image';
+        carouselImg.id = 'dynamic-modal-img';
         carouselImg.src = images[currentImgIdx];
         carouselImg.style.maxWidth = '100%';
         carouselImg.style.maxHeight = '55vh';
@@ -694,18 +781,104 @@ function openModal(product) {
         modalLeft.insertBefore(carouselContainer, elements.modalImage);
     } else {
         elements.modalImage.style.display = 'block';
+        elements.modalImage.id = 'dynamic-modal-img';
         elements.modalImage.src = imageSrc;
     }
     
     elements.modalTitle.textContent = `${getProductLabel(product)} - $${price}`;
     elements.modalDesc.textContent = product.details && product.details.trim() ? `${product.material} | ${product.details}` : product.material;
+
+    const modalRight = elements.modalOverlay.querySelector('.modal-right');
+    
+    // Setup color variants
+    let variantSection = modalRight.querySelector('.variant-section');
+    if (variantSection) variantSection.remove();
+    
+    window.currentSelectedVariant = null;
+
+    if (product.color_variants && product.color_variants.length > 0) {
+        variantSection = document.createElement('div');
+        variantSection.className = 'variant-section';
+        variantSection.style.marginBottom = '1.5rem';
+        
+        let swatchesHTML = '';
+        let firstAvailableIdx = -1;
+        
+        product.color_variants.forEach((v, idx) => {
+            const isStock = v.in_stock !== false;
+            if (isStock && firstAvailableIdx === -1) firstAvailableIdx = idx;
+        });
+        
+        if (firstAvailableIdx === -1) firstAvailableIdx = 0; // fallback if all are out of stock
+        
+        product.color_variants.forEach((v, idx) => {
+            const isStock = v.in_stock !== false;
+            const isActive = idx === firstAvailableIdx;
+            
+            let btnStyle = `padding: 0.4rem 0.8rem; margin-right: 0.5rem; margin-bottom: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; transition: all 0.2s; `;
+            
+            if (isStock) {
+                btnStyle += `cursor: pointer; background: ${isActive?'var(--gold-primary)':'var(--bg-card)'}; color: ${isActive?'#fff':'var(--text-primary)'};`;
+            } else {
+                btnStyle += `cursor: not-allowed; background: var(--bg-card); color: #999; text-decoration: line-through; opacity: 0.6;`;
+            }
+            
+            swatchesHTML += `<button type="button" class="variant-swatch" data-idx="${idx}" data-stock="${isStock}" style="${btnStyle}">${v.name}</button>`;
+        });
+        
+        const initialVariant = product.color_variants[firstAvailableIdx];
+        
+        variantSection.innerHTML = `
+            <div style="font-weight: 600; color: var(--gold-primary); margin-bottom: 0.5rem;">Color: <span id="variant-label" style="color: var(--text-primary); font-weight: 400;">${initialVariant.name}${initialVariant.in_stock === false ? ' (Agotado)' : ''}</span></div>
+            <div style="display: flex; flex-wrap: wrap;">${swatchesHTML}</div>
+        `;
+        
+        window.currentSelectedVariant = initialVariant.name;
+        
+        // If variants exist and have images, we make sure the first available variant image is shown
+        if (initialVariant.image) {
+            setTimeout(() => {
+                const imgEl = document.getElementById('dynamic-modal-img');
+                if (imgEl) imgEl.src = initialVariant.image;
+            }, 10);
+        }
+        
+        modalRight.insertBefore(variantSection, modalRight.firstChild); // Insert at the top of modal right
+        
+        const swatches = variantSection.querySelectorAll('.variant-swatch');
+        swatches.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.dataset.stock === 'false') return; // Do nothing if out of stock
+                
+                swatches.forEach(b => {
+                    if (b.dataset.stock === 'true') {
+                        b.style.background = 'var(--bg-card)';
+                        b.style.color = 'var(--text-primary)';
+                    }
+                });
+                btn.style.background = 'var(--gold-primary)';
+                btn.style.color = '#fff';
+                
+                const idx = parseInt(btn.dataset.idx);
+                const variant = product.color_variants[idx];
+                document.getElementById('variant-label').textContent = variant.name;
+                window.currentSelectedVariant = variant.name;
+                
+                const imgEl = document.getElementById('dynamic-modal-img');
+                if (imgEl && variant.image) {
+                    imgEl.src = variant.image;
+                }
+            });
+        });
+    }
     
     // Setup Customization inputs dynamically
     const isPersonalized = product.is_personalized === true || (['Collares', 'Llaveros'].includes(product.category) && product.subcategory === 'Personalizados') ||
                            (product.details && product.details.toLowerCase().includes('graba')) ||
-                           product.multi_aritos === true || product.requires_initial === true;
+                           product.multi_aritos === true || product.multi_plaquitas === true || product.requires_initial === true;
     
-    const modalRight = elements.modalOverlay.querySelector('.modal-right');
+    const hasCustomization = isPersonalized || product.allows_extra_kids === true;
+    
     let customSection = modalRight.querySelector('.customization-section');
     if (!customSection) {
         customSection = document.createElement('div');
@@ -729,9 +902,19 @@ function openModal(product) {
             </div>
         `;
         elements.modalTitle.textContent = `${getProductLabel(product)} - $${price}`;
-    } else if (isPersonalized) {
+    } else if (hasCustomization) {
         customSection.style.display = 'block';
-        renderCustomizationFields(product, price, customSection);
+        customSection.innerHTML = '';
+        
+        if (isPersonalized) {
+            renderCustomizationFields(product, price, customSection);
+        } else {
+            elements.modalTitle.textContent = `${getProductLabel(product)} - $${price}`;
+        }
+        
+        if (product.allows_extra_kids === true) {
+            renderExtraKidsFields(product, price, customSection);
+        }
     } else {
         customSection.style.display = 'none';
         elements.modalTitle.textContent = `${getProductLabel(product)} - $${price}`;
@@ -742,13 +925,22 @@ function openModal(product) {
         let customText = '';
         let customFont = '';
         let aritosCount = 2;
+        let extraBoys = 0;
+        let extraGirls = 0;
+        
+        if (product.allows_extra_kids === true && customSection) {
+            const boysSelect = customSection.querySelector('#extra-boys');
+            const girlsSelect = customSection.querySelector('#extra-girls');
+            extraBoys = boysSelect ? parseInt(boysSelect.value) || 0 : 0;
+            extraGirls = girlsSelect ? parseInt(girlsSelect.value) || 0 : 0;
+        }
         
         if (isPersonalized && customSection) {
             if (product.requires_initial === true) {
                 const initSelect = customSection.querySelector('#custom-initial');
                 customText = initSelect ? `Inicial elegida: ${initSelect.value}` : '';
                 customFont = 'N/A';
-            } else if (product.multi_aritos === true) {
+            } else if (product.multi_aritos === true || product.multi_plaquitas === true) {
                 const fontGroupEl = customSection.querySelector('#custom-font');
                 const checkedRadio = fontGroupEl ? fontGroupEl.querySelector('input[type=radio]:checked') : null;
                 customFont = checkedRadio ? checkedRadio.value : '1. Básica';
@@ -773,7 +965,11 @@ function openModal(product) {
             }
         }
         
-        addToCart(product.code, customText, customFont, aritosCount);
+        if (window.currentSelectedVariant) {
+            customText = `[Color: ${window.currentSelectedVariant}] ` + customText;
+        }
+        
+        addToCart(product.code, customText, customFont, aritosCount, extraBoys, extraGirls);
         closeModal();
     };
     
@@ -788,9 +984,9 @@ function closeModal() {
 }
 
 // Shopping Cart Management
-function addToCart(code, customText = '', customFont = '', aritosCount = 2) {
+function addToCart(code, customText = '', customFont = '', aritosCount = 2, extraBoys = 0, extraGirls = 0) {
     const cleanText = customText.trim();
-    const key = cleanText ? `${code}__${cleanText}__${customFont}__${aritosCount}` : code;
+    const key = cleanText ? `${code}__${cleanText}__${customFont}__${aritosCount}__${extraBoys}__${extraGirls}` : `${code}__${extraBoys}__${extraGirls}`;
     
     if (cart[key]) {
         cart[key].qty++;
@@ -800,7 +996,9 @@ function addToCart(code, customText = '', customFont = '', aritosCount = 2) {
             qty: 1,
             customText: cleanText,
             customFont: customFont,
-            aritosCount: aritosCount
+            aritosCount: aritosCount,
+            extraBoys: extraBoys,
+            extraGirls: extraGirls
         };
     }
     updateCartUI();
@@ -847,7 +1045,14 @@ function updateCartUI() {
             
             const qty = item.qty;
             const basePrice = mode === 'mayoreo' ? product.price_mayoreo : product.price_cliente;
-            const extraPrice = product.multi_aritos === true ? (item.aritosCount - 2) * 49 : 0;
+            let extraPrice = 0;
+            if (product.multi_aritos === true) {
+                const unit = mode === 'mayoreo' ? (product.aritos_price_mayoreo||0) : (product.aritos_price_cliente||0);
+                extraPrice = (item.aritosCount - 2) * unit;
+            } else if (product.multi_plaquitas === true) {
+                const unit = mode === 'mayoreo' ? (product.plaquitas_price_mayoreo||0) : (product.plaquitas_price_cliente||0);
+                extraPrice = (item.aritosCount - 1) * unit;
+            }
             const price = basePrice + extraPrice;
             const itemTotal = price * qty;
             
@@ -861,11 +1066,13 @@ function updateCartUI() {
             
             let customDetailsHTML = '';
             if (item.customText) {
-                if (product.multi_aritos === true) {
-                    const arosList = item.customText.split(' | ').map((text, idx) => `<span>Aro ${idx+1}: "${text}"</span>`).join('');
+                if (product.multi_aritos === true || product.multi_plaquitas === true) {
+                    const itemTypeSing = product.multi_aritos ? 'Aro' : 'Plaquita';
+                    const itemTypePlu = product.multi_aritos ? 'Aros' : 'Plaquitas';
+                    const arosList = item.customText.split(' | ').map((text, idx) => `<span>${itemTypeSing} ${idx+1}: "${text}"</span>`).join('');
                     customDetailsHTML = `
                         <div class="cart-item-custom-info">
-                            <span style="font-weight: bold;">💍 Aros: ${item.aritosCount}</span>
+                            <span style="font-weight: bold;">💍 ${itemTypePlu}: ${item.aritosCount}</span>
                             ${arosList}
                             <span>🔤 Letra: ${item.customFont}</span>
                         </div>
@@ -916,22 +1123,93 @@ function updateCartUI() {
     elements.cartBadge.textContent = totalItems;
     elements.cartTotalVal.textContent = `$${totalPrice}`;
     
+    // Check Shipping Rules
+    let shipping = 0;
+    if (mode === 'mayoreo') {
+        if (totalPrice > 0 && totalPrice < 2000) {
+            shipping = 238;
+        } else if (totalPrice >= 2000 && totalPrice < 3000) {
+            shipping = 119;
+        } else {
+            shipping = 0; // Gratis
+        }
+    }
+    
+    let shippingRow = document.getElementById('cart-shipping-row');
+    let shippingVal = document.getElementById('cart-shipping-val');
+    let finalTotalRow = document.getElementById('cart-final-total-row');
+    let finalTotalVal = document.getElementById('cart-final-total-val');
+    
+    // Dynamically inject if missing (to bypass cached HTML)
+    if (!shippingRow) {
+        const cartFooter = document.querySelector('.cart-footer');
+        if (cartFooter) {
+            const minWarning = document.getElementById('min-warning');
+            
+            shippingRow = document.createElement('div');
+            shippingRow.id = 'cart-shipping-row';
+            shippingRow.className = 'cart-total-row';
+            shippingRow.style.cssText = 'display: none; font-size: 0.95rem; margin-top: 0.5rem; color: #555;';
+            shippingRow.innerHTML = '<span class="cart-total-label">Envío:</span><span class="cart-total-val" id="cart-shipping-val">$0</span>';
+            cartFooter.insertBefore(shippingRow, minWarning);
+            
+            finalTotalRow = document.createElement('div');
+            finalTotalRow.id = 'cart-final-total-row';
+            finalTotalRow.className = 'cart-total-row';
+            finalTotalRow.style.cssText = 'display: none; margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 0.5rem;';
+            finalTotalRow.innerHTML = '<span class="cart-total-label">Total:</span><span class="cart-total-val" id="cart-final-total-val">$0</span>';
+            cartFooter.insertBefore(finalTotalRow, minWarning);
+            
+            shippingVal = document.getElementById('cart-shipping-val');
+            finalTotalVal = document.getElementById('cart-final-total-val');
+            
+            // Rename the original total to Subtotal just in case
+            const originalTotalLabel = document.querySelector('.cart-total-row .cart-total-label');
+            if (originalTotalLabel) originalTotalLabel.textContent = 'Subtotal:';
+        }
+    }
+    
+    if (shippingRow && finalTotalRow) {
+        if (totalPrice > 0) {
+            shippingRow.style.display = 'flex';
+            finalTotalRow.style.display = 'flex';
+            shippingVal.textContent = shipping === 0 ? '¡Gratis!' : `$${shipping}`;
+            finalTotalVal.textContent = `$${totalPrice + shipping}`;
+            if (shipping === 0) {
+                shippingVal.style.color = '#4CAF50';
+                shippingVal.style.fontWeight = 'bold';
+            } else {
+                shippingVal.style.color = '';
+                shippingVal.style.fontWeight = '';
+            }
+        } else {
+            shippingRow.style.display = 'none';
+            finalTotalRow.style.display = 'none';
+        }
+    }
+    
     // Check Wholesale Rules
     if (mode === 'mayoreo') {
         if (totalPrice < CONFIG.minPurchaseMayoreo) {
             elements.minWarning.style.display = 'block';
             elements.minWarning.textContent = `Mínimo de compra para mayoreo: $${CONFIG.minPurchaseMayoreo} MXN (Faltan $${CONFIG.minPurchaseMayoreo - totalPrice})`;
-            elements.checkoutBtn.disabled = true;
-            elements.checkoutBtn.style.opacity = '0.5';
+            if (elements.checkoutBtn) {
+                elements.checkoutBtn.disabled = true;
+                elements.checkoutBtn.style.opacity = '0.5';
+            }
         } else {
             elements.minWarning.style.display = 'none';
-            elements.checkoutBtn.disabled = false;
-            elements.checkoutBtn.style.opacity = '1';
+            if (elements.checkoutBtn) {
+                elements.checkoutBtn.disabled = false;
+                elements.checkoutBtn.style.opacity = '1';
+            }
         }
     } else {
         elements.minWarning.style.display = 'none';
-        elements.checkoutBtn.disabled = false;
-        elements.checkoutBtn.style.opacity = '1';
+        if (elements.checkoutBtn) {
+            elements.checkoutBtn.disabled = false;
+            elements.checkoutBtn.style.opacity = '1';
+        }
     }
 }
 
@@ -986,31 +1264,56 @@ function handleCheckout() {
         
         const qty = item.qty;
         const basePrice = mode === 'mayoreo' ? product.price_mayoreo : product.price_cliente;
-        const extraPrice = product.multi_aritos === true ? (item.aritosCount - 2) * 49 : 0;
-        const price = basePrice + extraPrice;
+        let extraAritosPrice = 0;
+        if (product.multi_aritos === true) {
+            const unit = mode === 'mayoreo' ? (product.aritos_price_mayoreo||0) : (product.aritos_price_cliente||0);
+            extraAritosPrice = (item.aritosCount - 2) * unit;
+        } else if (product.multi_plaquitas === true) {
+            const unit = mode === 'mayoreo' ? (product.plaquitas_price_mayoreo||0) : (product.plaquitas_price_cliente||0);
+            extraAritosPrice = (item.aritosCount - 1) * unit;
+        }
+        const extraKidUnit = mode === 'mayoreo' ? (product.extra_kid_price_mayoreo || 0) : (product.extra_kid_price_cliente || 0);
+        const extraKidsPrice = product.allows_extra_kids === true ? (item.extraBoys + item.extraGirls) * extraKidUnit : 0;
+        const price = basePrice + extraAritosPrice + extraKidsPrice;
         const subtotal = price * qty;
         total += subtotal;
         
         let customInfo = '';
         if (item.customText) {
-            if (product.multi_aritos === true) {
-                customInfo = ` [💍 Aros: ${item.aritosCount} | Grabados: '${item.customText}' | Letra: ${item.customFont}]`;
+            if (product.multi_aritos === true || product.multi_plaquitas === true) {
+                const itemType = product.multi_aritos ? 'Aros' : 'Plaquitas';
+                customInfo += ` [💍 ${itemType}: ${item.aritosCount} | Grabados: '${item.customText}' | Letra: ${item.customFont}]`;
             } else {
                 if (item.customFont === 'N/A') {
-                    customInfo = ` [${item.customText}]`;
+                    customInfo += ` [${item.customText}]`;
                 } else {
-                    customInfo = ` [Grabado: '${item.customText}' / Letra: ${item.customFont}]`;
+                    customInfo += ` [Grabado: '${item.customText}' / Letra: ${item.customFont}]`;
                 }
             }
+        }
+        
+        if (item.extraBoys > 0 || item.extraGirls > 0) {
+            let kidsArr = [];
+            if (item.extraBoys > 0) kidsArr.push(`${item.extraBoys} Niño${item.extraBoys > 1 ? 's' : ''}`);
+            if (item.extraGirls > 0) kidsArr.push(`${item.extraGirls} Niña${item.extraGirls > 1 ? 's' : ''}`);
+            customInfo += ` [Extra: ${kidsArr.join(', ')}]`;
         }
         
         message += `• *${qty}x* ${product.code}${customInfo} (${product.material}) - $${price} c/u (Sub: $${subtotal})\n`;
     });
     
-    message += `\n*Total estimado: $${total} MXN*\n`;
-    
+    let shipping = 0;
     if (mode === 'mayoreo') {
+        if (total > 0 && total < 2000) shipping = 238;
+        else if (total >= 2000 && total < 3000) shipping = 119;
+        
+        message += `\n*Subtotal estimado: $${total} MXN*\n`;
+        message += `*Envío Estándar: ${shipping === 0 ? '¡GRATIS!' : '$' + shipping + ' MXN'}*\n`;
+        message += `*TOTAL A PAGAR: $${total + shipping} MXN*\n`;
+        
         message += `\n_Pedido mayorista para Accesorizate. Agradezco me confirmen stock._`;
+    } else {
+        message += `\n*Total estimado: $${total} MXN*\n`;
     }
     
     const encodedMessage = encodeURIComponent(message);
