@@ -331,14 +331,25 @@
         @media (max-width: 900px) {
             .admin-header {
                 flex-direction: column;
-                gap: 1rem;
+                gap: 0.8rem;
                 padding: 1rem;
                 text-align: center;
+                margin-bottom: 1rem;
+            }
+            .admin-title-group h1 {
+                font-size: 1.4rem;
+            }
+            .admin-title-group p {
+                display: none;
             }
             .admin-nav {
                 flex-wrap: wrap;
                 justify-content: center;
-                gap: 0.5rem;
+                gap: 0.4rem;
+            }
+            .admin-nav .nav-link {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.85rem;
             }
             .stats-grid {
                 padding: 0 1rem;
@@ -361,8 +372,15 @@
                 padding: 1.5rem !important;
                 width: 95% !important;
             }
-            .form-grid {
+            .form-grid, #banner-form {
                 grid-template-columns: 1fr !important;
+            }
+            .banner-settings-section {
+                margin: 0 1rem 2rem 1rem !important;
+                padding: 15px !important;
+            }
+            #live-hero-preview {
+                min-height: 200px !important;
             }
         }
     </style>
@@ -422,6 +440,88 @@
             <div class="stat-val" id="stat-images" style="color: #2196f3;">0</div>
             <div class="stat-label">Con Imagen</div>
         </div>
+        <div class="stat-card">
+            <div class="stat-val" id="stat-views" style="color: #9c27b0;">0</div>
+            <div class="stat-label">Total Vistas</div>
+        </div>
+    </section>
+
+    <!-- Banner Settings -->
+    <section class="banner-settings-section" style="background: white; border-radius: 12px; padding: 20px; margin: 0 2rem 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border-color);">
+        <h2 style="font-size: 1.2rem; margin-bottom: 15px; color: var(--text-primary); border-bottom: 2px solid var(--gold-primary); display: inline-block; padding-bottom: 5px;">Configuración del Banner (Portada)</h2>
+        
+        <form id="banner-form" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="grid-column: 1 / -1;">
+                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Imagen del Banner</label>
+                <div style="display: flex; gap: 15px; align-items: flex-end;">
+                    <div id="banner-image-preview" style="width: 150px; height: 80px; background-color: #f5f5f5; border: 1px dashed #ccc; border-radius: 8px; background-size: cover; background-position: center;"></div>
+                    <div>
+                        <input type="file" id="banner-image-upload" accept="image/jpeg, image/png, image/webp" style="display: none;">
+                        <button type="button" class="btn" onclick="document.getElementById('banner-image-upload').click()" style="margin-bottom: 10px;">Subir Nueva Foto</button>
+                        <p style="font-size: 0.8rem; color: #666; margin: 0;">Recomendado: Imagen horizontal (16:9)</p>
+                    </div>
+                </div>
+            </div>
+
+            <div style="grid-column: 1 / -1;">
+                <label for="banner-position" style="display: block; font-weight: 500; margin-bottom: 8px;">Alineación Vertical de la Foto (Arriba - Abajo)</label>
+                <input type="range" id="banner-position" min="0" max="100" value="50" style="width: 100%; max-width: 400px; cursor: pointer;">
+            </div>
+
+            <div>
+                <label for="banner-title" style="display: block; font-weight: 500; margin-bottom: 8px;">Texto / Título (Opcional)</label>
+                <input type="text" id="banner-title" class="form-control" placeholder="Ej: Especial Día de las Madres">
+            </div>
+
+            <div style="grid-column: 1 / -1; margin-top: 10px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="banner-show-btn" style="width: 20px; height: 20px;">
+                    <span style="font-weight: 500;">¿Mostrar botón "Ver Colección"? (Redirigirá a la Colección de Temporada)</span>
+                </label>
+            </div>
+
+            <div style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="banner-active" style="width: 20px; height: 20px;">
+                    <span style="font-weight: 500;">Banner Activo (Mostrar en catálogo)</span>
+                </label>
+                
+                <button type="button" class="btn btn-primary" onclick="saveBannerSettings()">Guardar Configuración del Banner</button>
+            </div>
+
+            <div style="grid-column: 1 / -1; margin-top: 15px;">
+                <label style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 8px; cursor: pointer; color: var(--gold-primary); user-select: none;" onclick="const el = document.getElementById('preview-container'); if(el.style.display === 'none'){el.style.display='block'; this.innerHTML='▼ Ocultar Vista Previa del Banner';}else{el.style.display='none'; this.innerHTML='► Mostrar Vista Previa del Banner';}">
+                    ► Mostrar Vista Previa del Banner
+                </label>
+                <div id="preview-container" style="display: none; margin-top: 10px;">
+                    <div id="live-hero-preview" style="position: relative; width: 100%; min-height: 300px; height: 50vh; max-height: 600px; background-color: #eee; background-size: cover; background-position: center 50%; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 8px; border: 1px solid #ddd;">
+                        <!-- Overlay -->
+                        <div id="live-hero-overlay" style="position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.4); z-index: 1; display: none;"></div>
+                        <!-- Content -->
+                        <div style="position: relative; z-index: 2; text-align: center; color: white; padding: 0 1rem;">
+                            <h2 id="live-hero-title" style="font-family: 'Cinzel', serif; font-size: 2.5rem; font-weight: 300; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 1.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); display: none;"></h2>
+                            <span id="live-hero-btn" style="display: none; padding: 0.8rem 2rem; background-color: rgba(0, 0, 0, 0.6); border: 1px solid white; color: white; text-transform: uppercase; letter-spacing: 2px; font-weight: 300; font-family: 'Montserrat', sans-serif; backdrop-filter: blur(4px);">Ver Colección</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- Seasonal Settings -->
+    <section class="banner-settings-section" style="background: white; border-radius: 12px; padding: 20px; margin: 0 2rem 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border-color);">
+        <h2 style="font-size: 1.2rem; margin-bottom: 15px; color: var(--text-primary); border-bottom: 2px solid var(--gold-primary); display: inline-block; padding-bottom: 5px;">Configuración de Colección de Temporada</h2>
+        
+        <form id="seasonal-form" style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+            <div>
+                <label for="seasonal-title" style="display: block; font-weight: 500; margin-bottom: 8px;">Título de la Sección</label>
+                <input type="text" id="seasonal-title" class="form-control" placeholder="Ej: DÍA DEL PADRE">
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: flex-end;">
+                <button type="button" class="btn btn-primary" onclick="saveSeasonalSettings()">Guardar Configuración de Temporada</button>
+            </div>
+        </form>
     </section>
 
     <!-- Controls Row -->
@@ -453,6 +553,12 @@
                 <option value="active">Activos</option>
                 <option value="inactive">Desactivados</option>
             </select>
+
+            <!-- Sort option -->
+            <select id="admin-sort-order" class="admin-select">
+                <option value="code">Ordenar por Código</option>
+                <option value="views">Más Vistos</option>
+            </select>
         </div>
 
         <button class="add-product-btn" id="add-product-btn">
@@ -480,6 +586,7 @@
                     <th>Material</th>
                     <th>P. Mayoreo</th>
                     <th>P. Público</th>
+                    <th>Vistas</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                 </tr>
@@ -513,6 +620,7 @@
                                     <option value="Acero Inoxidable">Acero Inoxidable (AX)</option>
                                     <option value="Chapa de Oro">Chapa de Oro (CH)</option>
                                     <option value="Chapa con Acero">Chapa con Acero (XC)</option>
+                                    <option value="Oro 10K">Oro 10K</option>
                                     <option value="Aleación de Metales">Aleación de Metales (RT, DM)</option>
                                     <option value="Aluminio">Aluminio (LM)</option>
                                     <option value="Latón">Latón (LA)</option>
@@ -601,6 +709,11 @@
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
                                 <input type="checkbox" id="p-requires-initial" style="width: 18px; height: 18px; cursor: pointer;">
                                 <label for="p-requires-initial" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Es collar de inicial? (Pedirá elegir A-Z)</label>
+                            </div>
+
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+                                <input type="checkbox" id="p-is-seasonal" style="width: 18px; height: 18px; cursor: pointer;">
+                                <label for="p-is-seasonal" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Producto de temporada (Saldrá en la colección)</label>
                             </div>
                         </div>
 
@@ -716,6 +829,7 @@
         const filterCategory = document.getElementById('admin-filter-category');
         const filterMaterial = document.getElementById('admin-filter-material');
         const filterStatus = document.getElementById('admin-filter-status');
+        const sortOrder = document.getElementById('admin-sort-order');
         const addProductBtn = document.getElementById('add-product-btn');
         const modal = document.getElementById('product-modal');
         const modalClose = document.getElementById('product-modal-close');
@@ -770,7 +884,149 @@
             renderTable();
             updateStats();
             setupEventListeners();
+            loadBannerSettings();
         }
+
+        // --- Banner Settings Logic ---
+        let bannerImageUrl = '';
+        let bannerImageFile = null;
+
+        function updateLivePreview() {
+            const titleInput = document.getElementById('banner-title').value;
+            const showBtn = document.getElementById('banner-show-btn').checked;
+            const posInput = document.getElementById('banner-position').value;
+            
+            const liveTitle = document.getElementById('live-hero-title');
+            const liveBtn = document.getElementById('live-hero-btn');
+            const liveOverlay = document.getElementById('live-hero-overlay');
+            const livePreview = document.getElementById('live-hero-preview');
+            const miniPreview = document.getElementById('banner-image-preview');
+
+            if (titleInput) {
+                liveTitle.textContent = titleInput;
+                liveTitle.style.display = 'block';
+                liveOverlay.style.display = 'block';
+            } else {
+                liveTitle.style.display = 'none';
+                liveOverlay.style.display = 'none';
+            }
+
+            if (showBtn || titleInput) {
+                liveOverlay.style.display = 'block';
+            } else {
+                liveOverlay.style.display = 'none';
+            }
+
+            if (showBtn) {
+                liveBtn.textContent = 'Ver Colección';
+                liveBtn.style.display = 'inline-block';
+            } else {
+                liveBtn.style.display = 'none';
+            }
+
+            livePreview.style.backgroundPosition = `center ${posInput}%`;
+            miniPreview.style.backgroundPosition = `center ${posInput}%`;
+
+            if (bannerImageUrl) {
+                livePreview.style.backgroundImage = `url(${bannerImageUrl})`;
+                miniPreview.style.backgroundImage = `url(${bannerImageUrl})`;
+            }
+        }
+
+        async function loadBannerSettings() {
+            if (!window.db) return;
+            try {
+                const doc = await window.db.collection('settings').doc('banner').get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    document.getElementById('banner-title').value = data.title || '';
+                    document.getElementById('banner-show-btn').checked = data.showBtn !== undefined ? data.showBtn : (!!data.link);
+                    document.getElementById('banner-active').checked = data.active || false;
+                    document.getElementById('banner-position').value = data.positionY !== undefined ? data.positionY : 50;
+                    
+                    if (data.image) {
+                        bannerImageUrl = data.image;
+                        updateLivePreview();
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading banner settings:", error);
+            }
+            loadSeasonalSettings();
+        }
+
+        document.getElementById('banner-image-upload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                bannerImageFile = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    bannerImageUrl = e.target.result;
+                    updateLivePreview();
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Add input event listeners to update live preview
+        document.getElementById('banner-title').addEventListener('input', updateLivePreview);
+        document.getElementById('banner-show-btn').addEventListener('change', updateLivePreview);
+        document.getElementById('banner-position').addEventListener('input', updateLivePreview);
+
+        async function saveBannerSettings() {
+            if (!window.db) return showToast('Error: No hay conexión a Firebase', 'error');
+            
+            const btn = document.querySelector('button[onclick="saveBannerSettings()"]');
+            btn.disabled = true;
+            btn.innerText = 'Guardando...';
+
+            try {
+                // If there's a new file, upload it first
+                if (bannerImageFile) {
+                    showToast('Subiendo imagen, espera por favor...', 'info');
+                    
+                    if (window.imgbbApiKey) {
+                        // Use Imgbb
+                        const formData = new FormData();
+                        formData.append('key', window.imgbbApiKey);
+                        formData.append('image', bannerImageFile);
+                        const response = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+                        const resData = await response.json();
+                        if (resData.success) {
+                            bannerImageUrl = resData.data.url;
+                        } else {
+                            throw new Error(resData.error.message || 'Error al subir a Imgbb');
+                        }
+                    } else {
+                        // Use Firebase Storage
+                        const storageRef = (window.storage || firebase.storage()).ref();
+                        const bannerRef = storageRef.child(`images/banner/${Date.now()}_${bannerImageFile.name}`);
+                        await bannerRef.put(bannerImageFile);
+                        bannerImageUrl = await bannerRef.getDownloadURL();
+                    }
+                    
+                    bannerImageFile = null; // Clear after successful upload
+                }
+                
+                const bannerData = {
+                    title: document.getElementById('banner-title').value,
+                    showBtn: document.getElementById('banner-show-btn').checked,
+                    active: document.getElementById('banner-active').checked,
+                    image: bannerImageUrl,
+                    positionY: parseInt(document.getElementById('banner-position').value, 10)
+                };
+                
+                await window.db.collection('settings').doc('banner').set(bannerData);
+                showToast('Banner guardado correctamente', 'success');
+            } catch (e) {
+                console.error("Error saving banner:", e);
+                showToast('Error al guardar el banner', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Guardar Configuración del Banner';
+            }
+        }
+        // ------------------------------
 
         // Setup the One-Click Migration Button
         function setupMigrationListener() {
@@ -827,6 +1083,9 @@
             document.getElementById('stat-active').innerText = products.filter(p => p.active !== false).length;
             document.getElementById('stat-inactive').innerText = products.filter(p => p.active === false).length;
             document.getElementById('stat-images').innerText = products.filter(p => p.has_image).length;
+            
+            const totalViews = products.reduce((sum, p) => sum + (p.views || 0), 0);
+            document.getElementById('stat-views').innerText = totalViews;
         }
 
         // Fill filter dropdowns dynamically
@@ -887,8 +1146,13 @@
                 return matchesSearch && matchesCategory && matchesMaterial && matchesStatus;
             });
 
-            // Sort products by code
-            filtered.sort((a, b) => a.code.localeCompare(b.code));
+            // Sort products
+            const sortBy = sortOrder.value;
+            if (sortBy === 'views') {
+                filtered.sort((a, b) => (b.views || 0) - (a.views || 0));
+            } else {
+                filtered.sort((a, b) => a.code.localeCompare(b.code));
+            }
 
             // Paginate table to show only first 150 matching products for performance, let user use search for more
             const itemsToShow = filtered.slice(0, 150);
@@ -942,6 +1206,11 @@
                 tdCliente.innerText = `$${p.price_cliente}`;
                 tr.appendChild(tdCliente);
 
+                // Views column
+                const tdViews = document.createElement('td');
+                tdViews.innerHTML = `<span style="color: #9c27b0; font-weight: 600;">${p.views || 0} <svg width="12" height="12" fill="currentColor" viewBox="0 0 16 16" style="margin-left: 2px; vertical-align: middle;"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg></span>`;
+                tr.appendChild(tdViews);
+
                 // Active toggle switch
                 const tdStatus = document.createElement('td');
                 const switchLabel = document.createElement('label');
@@ -993,6 +1262,7 @@
             filterCategory.addEventListener('change', renderTable);
             filterMaterial.addEventListener('change', renderTable);
             filterStatus.addEventListener('change', renderTable);
+            sortOrder.addEventListener('change', renderTable);
 
             addProductBtn.addEventListener('click', openAddModal);
             modalClose.addEventListener('click', closeModal);
@@ -1114,6 +1384,7 @@
             document.getElementById('p-extra-kid-price-mayoreo').value = prod.extra_kid_price_mayoreo || '';
             document.getElementById('p-extra-kid-price-cliente').value = prod.extra_kid_price_cliente || '';
             document.getElementById('extra-kid-price-container').style.display = prod.allows_extra_kids ? 'block' : 'none';
+            document.getElementById('p-is-seasonal').checked = prod.isSeasonal === true;
 
             document.getElementById('modal-heading').innerText = `Editar Producto: ${code}`;
 
@@ -1357,6 +1628,7 @@
             const allowsExtraKids = document.getElementById('p-allows-extra-kids').checked;
             const extraKidPriceMayoreo = parseInt(document.getElementById('p-extra-kid-price-mayoreo').value) || 0;
             const extraKidPriceCliente = parseInt(document.getElementById('p-extra-kid-price-cliente').value) || 0;
+            const isSeasonal = document.getElementById('p-is-seasonal').checked;
 
             if (isNaN(priceCliente)) {
                 priceCliente = priceMayoreo * 2; // Auto double if empty
@@ -1484,6 +1756,7 @@
                         allows_extra_kids: allowsExtraKids,
                         extra_kid_price_mayoreo: extraKidPriceMayoreo,
                         extra_kid_price_cliente: extraKidPriceCliente,
+                        isSeasonal: isSeasonal,
                         updated_at: Date.now(),
                         active: existingProd.active !== false,
                         created_at: existingProd.created_at || Date.now(),
@@ -1515,6 +1788,7 @@
                     allows_extra_kids: allowsExtraKids,
                     extra_kid_price_mayoreo: extraKidPriceMayoreo,
                     extra_kid_price_cliente: extraKidPriceCliente,
+                    isSeasonal: isSeasonal,
                     has_image: hasImage,
                     image: mainImage,
                     images: imageUrls,
@@ -1575,6 +1849,41 @@
 
         // Run setup
         init();
+    </script>
+    <script>
+        // Seasonal Settings Logic
+        async function loadSeasonalSettings() {
+            if (!window.db) return;
+            try {
+                const doc = await window.db.collection('settings').doc('seasonal').get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    document.getElementById('seasonal-title').value = data.title || '';
+                }
+            } catch (e) {
+                console.error("Error loading seasonal settings", e);
+            }
+        }
+
+        async function saveSeasonalSettings() {
+            if (!window.db) return showToast('Error: No hay conexión a Firebase', 'error');
+            const btn = document.querySelector('button[onclick="saveSeasonalSettings()"]');
+            btn.disabled = true;
+            btn.innerText = 'Guardando...';
+            try {
+                const data = {
+                    title: document.getElementById('seasonal-title').value
+                };
+                await window.db.collection('settings').doc('seasonal').set(data);
+                showToast('Colección de Temporada guardada correctamente', 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('Error al guardar colección', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Guardar Configuración de Temporada';
+            }
+        }
     </script>
 </body>
 </html>

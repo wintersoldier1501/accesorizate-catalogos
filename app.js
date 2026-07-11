@@ -72,6 +72,26 @@ document.addEventListener('DOMContentLoaded', () => {
 async function fetchProducts() {
     // 1. Fetch from Firebase Firestore if available
     if (window.db) {
+        // Fetch Banner Settings first
+        try {
+            const bannerDoc = await window.db.collection("settings").doc("banner").get();
+            if (bannerDoc.exists) {
+                window.bannerSettings = bannerDoc.data();
+            }
+        } catch (error) {
+            console.error("Error fetching banner settings:", error);
+        }
+
+        // Fetch Seasonal Settings
+        try {
+            const seasonalDoc = await window.db.collection("settings").doc("seasonal").get();
+            if (seasonalDoc.exists) {
+                window.seasonalSettings = seasonalDoc.data();
+            }
+        } catch (error) {
+            console.error("Error fetching seasonal settings:", error);
+        }
+
         console.log("Fetching products database from Firebase Firestore...");
         try {
             const querySnapshot = await window.db.collection("products").get();
@@ -136,6 +156,7 @@ async function fetchProducts() {
 function setupEventListeners() {
     // Search
     elements.searchInput.addEventListener('input', (e) => {
+        window.showingSeasonalOnly = false;
         searchQuery = e.target.value.toLowerCase().trim();
         applyFilters();
     });
@@ -148,6 +169,7 @@ function setupEventListeners() {
             
             elements.categoryFilters.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            window.showingSeasonalOnly = false;
             activeCategory = btn.dataset.category;
             applyFilters();
         });
@@ -161,6 +183,7 @@ function setupEventListeners() {
             
             elements.materialFilters.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            window.showingSeasonalOnly = false;
             activeMaterial = btn.dataset.material;
             applyFilters();
         });
@@ -204,7 +227,13 @@ function applyFilters() {
         return match ? parseInt(match[0], 10) : 0;
     };
 
-    if (activeCategory === 'all' && searchQuery === '') {
+    if (window.showingSeasonalOnly) {
+        window.showCarousels = false;
+        filteredProducts = products.filter(p => p.isSeasonal === true && p.active !== false).map(p => ({
+            ...p,
+            displaySubcategory: window.seasonalSettings?.title || 'Colección de Temporada'
+        }));
+    } else if (activeCategory === 'all' && searchQuery === '') {
         // Homepage Browse View (Todos / no search)
         // 1. Get all active standard products (excluding Personalized and Niñas)
         const standardProducts = products.filter(p => {
@@ -227,20 +256,35 @@ function applyFilters() {
             return getCodeNumber(b.code) - getCodeNumber(a.code);
         });
 
-        // 3. Mark all of them with displaySubcategory = 'NUEVO' so they display under a single 'NUEVO' header
+        // Extract top 20 newest for Recién Llegados carousel (strictly highest code numbers)
+        const sortedByCode = [...standardProducts].sort((a, b) => getCodeNumber(b.code) - getCodeNumber(a.code));
+        window.homepageNewest = sortedByCode.slice(0, 20);
+        
+        // (Seasonal extraction logic moved to dedicated view)
+        
+        // Extract top 20 most viewed for Tendencias carousel
+        const trending = [...standardProducts].sort((a, b) => (b.views || 0) - (a.views || 0));
+        window.homepageTrending = trending.slice(0, 20);
+
+        // 3. Mark all of them with displaySubcategory = 'CATÁLOGO COMPLETO'
         filteredProducts = standardProducts.map(p => ({
             ...p,
-            displaySubcategory: 'NUEVO'
+            displaySubcategory: 'CATÁLOGO COMPLETO'
         }));
 
+        // Apply Material filter if active
         // Apply Material filter if active
         if (activeMaterial !== 'all') {
             filteredProducts = filteredProducts.filter(p => {
                 return (p.material && p.material.toLowerCase().includes(activeMaterial.toLowerCase())) ||
                        (activeMaterial === 'Otros' && p.material && !['Acero Inoxidable', 'Chapa de Oro'].some(m => p.material.includes(m)));
             });
+            window.showCarousels = false;
+        } else {
+            window.showCarousels = true;
         }
     } else {
+        window.showCarousels = false;
         // Standard category view or search view
         filteredProducts = products.filter(p => {
             if (p.active === false) return false;
@@ -303,6 +347,80 @@ function renderNextPage() {
     
     const fragment = document.createDocumentFragment();
     
+    // Inject Carousels on Homepage
+    if (startIdx === 0 && window.showCarousels) {
+        
+        // Hero Banner
+        if (window.bannerSettings && window.bannerSettings.active && window.bannerSettings.image) {
+            const heroWrap = document.createElement('div');
+            heroWrap.style.gridColumn = '1 / -1';
+            
+            let btnHtml = '';
+            if (window.bannerSettings.showBtn) {
+                btnHtml = `<button class="hero-btn" onclick="window.showingSeasonalOnly = true; applyFilters(); document.getElementById('products-grid').scrollIntoView({behavior: 'smooth'})">Ver Colección</button>`;
+            } else if (window.bannerSettings.link) {
+                btnHtml = `<button class="hero-btn" onclick="document.getElementById('search-input').value='${window.bannerSettings.link}'; document.getElementById('search-input').dispatchEvent(new Event('input'))">Ver Colección</button>`;
+            }
+
+            let titleHtml = '';
+            if (window.bannerSettings.title) {
+                titleHtml = `<h2 class="hero-title">${window.bannerSettings.title}</h2>`;
+            }
+
+            const posnY = window.bannerSettings.positionY !== undefined ? window.bannerSettings.positionY : 50;
+            heroWrap.innerHTML = `
+                <div class="hero-banner ${titleHtml ? 'has-overlay' : ''}" style="background-image: url('${window.bannerSettings.image}'); background-position: center ${posnY}%;">
+                    <div class="hero-content">
+                        ${titleHtml}
+                        ${btnHtml}
+                    </div>
+                </div>
+            `;
+            fragment.appendChild(heroWrap);
+        }
+
+        // Seasonal Carousel removed per request, now in dedicated view
+
+        // Recién Llegados Carousel
+        const newHeaderDiv = document.createElement('div');
+        newHeaderDiv.className = 'section-header';
+        newHeaderDiv.style.gridColumn = '1 / -1';
+        newHeaderDiv.style.marginTop = '0';
+        newHeaderDiv.innerHTML = `<h2 class="section-title">Recién Llegados</h2>`;
+        fragment.appendChild(newHeaderDiv);
+
+        const newCarouselWrap = document.createElement('div');
+        newCarouselWrap.style.gridColumn = '1 / -1';
+        const newCarousel = document.createElement('div');
+        newCarousel.className = 'horizontal-carousel';
+        if (window.homepageNewest) {
+            window.homepageNewest.forEach(prod => {
+                newCarousel.appendChild(createProductCard(prod));
+            });
+        }
+        newCarouselWrap.appendChild(newCarousel);
+        fragment.appendChild(newCarouselWrap);
+
+        // Tendencias Carousel
+        const trendHeaderDiv = document.createElement('div');
+        trendHeaderDiv.className = 'section-header';
+        trendHeaderDiv.style.gridColumn = '1 / -1';
+        trendHeaderDiv.innerHTML = `<h2 class="section-title">Más Vistos</h2>`;
+        fragment.appendChild(trendHeaderDiv);
+
+        const trendCarouselWrap = document.createElement('div');
+        trendCarouselWrap.style.gridColumn = '1 / -1';
+        const trendCarousel = document.createElement('div');
+        trendCarousel.className = 'horizontal-carousel';
+        if (window.homepageTrending) {
+            window.homepageTrending.forEach(prod => {
+                trendCarousel.appendChild(createProductCard(prod));
+            });
+        }
+        trendCarouselWrap.appendChild(trendCarousel);
+        fragment.appendChild(trendCarouselWrap);
+    }
+
     // We group items under subcategory sections if rendering general view without search
     
     for (let i = startIdx; i < endIdx; i++) {
@@ -658,6 +776,14 @@ function renderExtraKidsFields(product, price, customSection) {
 
 // Open Lightbox Modal for a product
 function openModal(product) {
+    // Increment views in Firebase silently
+    if (window.db && product && product.code) {
+        window.db.collection('products').doc(product.code).set(
+            { views: firebase.firestore.FieldValue.increment(1) },
+            { merge: true }
+        ).catch(err => console.error("Error incrementing views:", err));
+    }
+
     const price = mode === 'mayoreo' ? product.price_mayoreo : product.price_cliente;
     const imageSrc = product.has_image ? product.image : 'public/images/placeholder.webp';
     
