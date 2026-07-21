@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "catalogos-accesorizate"
-  }
+  },
+  "targets": {
+    "catalogos-accesorizate": {
+      "hosting": {
+        "accesorios": [
+          "catalogos-accesorios"
+        ],
+        "accesorizate": [
+          "catalogos-accesorizate"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

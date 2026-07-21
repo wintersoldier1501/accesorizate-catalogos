@@ -561,12 +561,20 @@
             </select>
         </div>
 
-        <button class="add-product-btn" id="add-product-btn">
+        <div style="display: flex;">
+            <button class="add-product-btn" id="clean-no-photo-btn" style="background-color: #6c757d; margin-right: 10px;" onclick="deactivateProductsWithoutPhoto()">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H2.506a.58.58 0 0 0-.01 0H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1h-.995a.59.59 0 0 0-.01 0H11Zm1.129-1h-8.26A.5.5 0 0 1 4 1.5v1h8v-1a.5.5 0 0 1 .129-.5ZM6 1.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1H6v-1Zm1 3a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5Zm3 0a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5Z"/>
+                </svg>
+                Ocultar Sin Foto
+            </button>
+            <button class="add-product-btn" id="add-product-btn">
             <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                 <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
             </svg>
             Agregar Producto
-        </button>
+            </button>
+        </div>
     </section>
 
     <!-- Table of products -->
@@ -631,24 +639,48 @@
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="p-category">Categoría*</label>
-                                <select id="p-category" class="admin-select" style="width: 100%;" required>
+                                <select id="p-category" class="admin-select" style="width: 100%; box-sizing: border-box;" required>
                                     <option value="Collares">Collares</option>
                                     <option value="Aretes">Aretes</option>
-                                    <option value="Piercings">Piercings</option>
                                     <option value="Anillos">Anillos</option>
                                     <option value="Pulseras">Pulseras</option>
                                     <option value="Llaveros">Llaveros</option>
-                                    <option value="Accesorios para Niña">Accesorios para Niña</option>
+                                    <option value="Piercings">Piercings</option>
+                                    <option value="NEW">+ Agregar nueva categoría...</option>
+                                </select>
+                                <input type="text" id="p-new-category" class="admin-select" style="width: 100%; margin-top: 0.5rem; display: none;" placeholder="Nombre de la nueva categoría...">
+                            </div>
+                            <div class="form-group" id="subcategory-container" style="display: none;">
+                                <label for="p-subcategory">Subcategoría Piercing*</label>
+                                <select id="p-subcategory" class="admin-select" style="width: 100%;">
+                                    <option value="">Selecciona una...</option>
+                                    <option value="Stud">Stud</option>
+                                    <option value="Huggie">Huggie</option>
+                                    <option value="Earcuff">Earcuff</option>
                                 </select>
                             </div>
+                        </div>
+                        <div class="form-grid">
                             <div class="form-group" style="display: flex; flex-direction: column; gap: 0.5rem; justify-content: flex-end;">
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <input type="checkbox" id="p-is-personalized" style="width: 18px; height: 18px; cursor: pointer;">
-                                    <label for="p-is-personalized" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Producto Personalizable (Grabado)</label>
+                                    <label for="p-is-personalized" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Producto Personalizable (Grabado de Texto)</label>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="p-allows-photo" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="p-allows-photo" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Permite grabar foto/dibujo?</label>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <input type="checkbox" id="p-is-mens" style="width: 18px; height: 18px; cursor: pointer;">
                                     <label for="p-is-mens" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Mostrar en categoría Hombre</label>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                                    <input type="checkbox" id="p-show-in-personalized" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="p-show-in-personalized" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Mostrar en categoría Personalizados</label>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                                    <input type="checkbox" id="p-exclude-new-arrivals" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="p-exclude-new-arrivals" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">No incluir en Recién Llegados</label>
                                 </div>
                             </div>
                         </div>
@@ -675,10 +707,14 @@
                             
                             <div>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="p-multi-aritos" style="width: 18px; height: 18px; cursor: pointer;" onchange="document.getElementById('aritos-price-container').style.display = this.checked ? 'flex' : 'none'">
+                                    <input type="checkbox" id="p-multi-aritos" style="width: 18px; height: 18px; cursor: pointer;" onchange="document.getElementById('aritos-price-container').style.display = this.checked ? 'grid' : 'none'">
                                     <label for="p-multi-aritos" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Soporta múltiples aritos grabados?</label>
                                 </div>
-                                <div class="form-grid" id="aritos-price-container" style="margin-top: 0.5rem; display: none;">
+                                <div class="form-grid" id="aritos-price-container" style="margin-top: 0.5rem; display: none; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                    <div class="form-group" style="margin: 0; grid-column: span 2;">
+                                        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.2rem;">Cantidad base incluida</label>
+                                        <input type="number" id="p-aritos-base-count" class="form-input" placeholder="Ej. 1, 2, 3..." style="padding: 0.4rem;" min="1" value="2">
+                                    </div>
                                     <div class="form-group" style="margin: 0;"><input type="number" id="p-aritos-price-mayoreo" class="form-input" placeholder="Precio Mayoreo" style="padding: 0.4rem;"></div>
                                     <div class="form-group" style="margin: 0;"><input type="number" id="p-aritos-price-cliente" class="form-input" placeholder="Precio Público" style="padding: 0.4rem;"></div>
                                 </div>
@@ -686,10 +722,14 @@
 
                             <div>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="p-multi-plaquitas" style="width: 18px; height: 18px; cursor: pointer;" onchange="document.getElementById('plaquitas-price-container').style.display = this.checked ? 'flex' : 'none'">
+                                    <input type="checkbox" id="p-multi-plaquitas" style="width: 18px; height: 18px; cursor: pointer;" onchange="document.getElementById('plaquitas-price-container').style.display = this.checked ? 'grid' : 'none'">
                                     <label for="p-multi-plaquitas" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Soporta múltiples plaquitas grabadas?</label>
                                 </div>
-                                <div class="form-grid" id="plaquitas-price-container" style="margin-top: 0.5rem; display: none;">
+                                <div class="form-grid" id="plaquitas-price-container" style="margin-top: 0.5rem; display: none; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                    <div class="form-group" style="margin: 0; grid-column: span 2;">
+                                        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.2rem;">Cantidad base incluida</label>
+                                        <input type="number" id="p-plaquitas-base-count" class="form-input" placeholder="Ej. 1, 2, 3..." style="padding: 0.4rem;" min="1" value="1">
+                                    </div>
                                     <div class="form-group" style="margin: 0;"><input type="number" id="p-plaquitas-price-mayoreo" class="form-input" placeholder="Precio Mayoreo" style="padding: 0.4rem;"></div>
                                     <div class="form-group" style="margin: 0;"><input type="number" id="p-plaquitas-price-cliente" class="form-input" placeholder="Precio Público" style="padding: 0.4rem;"></div>
                                 </div>
@@ -699,6 +739,10 @@
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <input type="checkbox" id="p-allows-extra-kids" style="width: 18px; height: 18px; cursor: pointer;" onchange="document.getElementById('extra-kid-price-container').style.display = this.checked ? 'flex' : 'none'">
                                     <label for="p-allows-extra-kids" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Permite agregar niños/niñas extra?</label>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                                    <input type="checkbox" id="p-requires-base-kid" style="width: 18px; height: 18px; cursor: pointer;">
+                                    <label for="p-requires-base-kid" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">¿Pedir elegir el sexo del dije principal incluido (Niño o Niña)?</label>
                                 </div>
                                 <div class="form-grid" id="extra-kid-price-container" style="margin-top: 0.5rem; display: none;">
                                     <div class="form-group" style="margin: 0;"><input type="number" id="p-extra-kid-price-mayoreo" class="form-input" placeholder="Precio Mayoreo" style="padding: 0.4rem;"></div>
@@ -716,6 +760,8 @@
                                 <label for="p-is-seasonal" style="font-weight: 600; cursor: pointer; margin: 0; font-size: 0.9rem;">Producto de temporada (Saldrá en la colección)</label>
                             </div>
                         </div>
+
+
 
                     </div> <!-- END LEFT COLUMN -->
 
@@ -744,6 +790,18 @@
                             <button type="button" class="action-btn" id="add-variant-btn" style="width: 100%; padding: 0.5rem; background: transparent; border: 1px solid var(--gold-primary); color: var(--gold-primary);">+ Agregar Variante de Color</button>
                         </div>
                     </div> <!-- END RIGHT COLUMN -->
+                    
+                    <!-- BOTTOM WIDE COLUMN (If needed, but right column is fine) -->
+                    <div style="grid-column: span 2;">
+                        <h4 style="margin-top: 1.5rem; margin-bottom: 1rem; color: var(--gold-primary); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Opciones Dinámicas (Avanzado)</h4>
+                        
+                        <div style="background: var(--bg-hover); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div id="dynamic-options-container" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem;">
+                                <!-- Dynamic fields will be rendered here -->
+                            </div>
+                            <button type="button" class="btn" onclick="addDynamicOption()" style="width: 100%; font-size: 0.9rem; padding: 0.5rem;">+ Agregar Campo Dinámico</button>
+                        </div>
+                    </div>
                 </div> <!-- END GRID 2 COLUMNS -->
 
                 <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
@@ -839,24 +897,67 @@
         const formCode = document.getElementById('p-code');
         const formMaterial = document.getElementById('p-material');
         const formCategory = document.getElementById('p-category');
+        const formSubcategory = document.getElementById('p-subcategory');
+        const subcategoryContainer = document.getElementById('subcategory-container');
         const formIsPersonalized = document.getElementById('p-is-personalized');
         const formIsMens = document.getElementById('p-is-mens');
+        const formShowInPersonalized = document.getElementById('p-show-in-personalized');
         const formPriceMayoreo = document.getElementById('p-price-mayoreo');
         const formPriceCliente = document.getElementById('p-price-cliente');
         const formDetails = document.getElementById('p-details');
         const formMultiAritos = document.getElementById('p-multi-aritos');
+        const formAritosBaseCount = document.getElementById('p-aritos-base-count');
+        const formPlaquitasBaseCount = document.getElementById('p-plaquitas-base-count');
         const formAritosPriceMayoreo = document.getElementById('p-aritos-price-mayoreo');
         const formAritosPriceCliente = document.getElementById('p-aritos-price-cliente');
         const formMultiPlaquitas = document.getElementById('p-multi-plaquitas');
         const formPlaquitasPriceMayoreo = document.getElementById('p-plaquitas-price-mayoreo');
         const formPlaquitasPriceCliente = document.getElementById('p-plaquitas-price-cliente');
         const formRequiresInitial = document.getElementById('p-requires-initial');
-        const fileInput = document.getElementById('p-image-file');
+const fileInput = document.getElementById('p-image-file');
         const dropzone = document.getElementById('image-dropzone');
         const previewContainer = document.getElementById('image-preview-container');
         const toast = document.getElementById('admin-toast');
 
-        // Initial Setup
+        // Deactivate all products without a photo and reactivate the rest
+        async function deactivateProductsWithoutPhoto() {
+            try {
+                const querySnapshot = await db.collection('products').get();
+                let reactivated = 0;
+                let deactivated = 0;
+                
+                const docs = querySnapshot.docs;
+                const chunks = [];
+                for (let i = 0; i < docs.length; i += 400) {
+                    chunks.push(docs.slice(i, i + 400));
+                }
+
+                for (const chunk of chunks) {
+                    const batch = db.batch();
+                    chunk.forEach(doc => {
+                        const data = doc.data();
+                        const hasImg = data.has_image === true || (data.image && data.image.trim() !== '') || (data.images && data.images.length > 0);
+                        
+                        if (!hasImg) {
+                            batch.update(doc.ref, { active: false });
+                            deactivated++;
+                        } else {
+                            batch.update(doc.ref, { active: true });
+                            reactivated++;
+                        }
+                    });
+                    await batch.commit();
+                }
+                
+                alert(`¡Listo! Se ocultaron ${deactivated} productos sin foto y se aseguraron ${reactivated} productos activos.`);
+                loadProducts(); 
+            } catch(e) {
+                console.error(e);
+                alert('Error al actualizar productos: ' + e.message);
+            }
+        }
+        
+        // Initial setup
         async function init() {
             if (window.db) {
                 try {
@@ -1093,16 +1194,31 @@
             const categories = new Set();
             const materials = new Set();
             products.forEach(p => {
-                if (p.category) categories.add(p.category);
+                if (p.category && p.category !== 'Accesorios para Niña') categories.add(p.category);
                 if (p.material) materials.add(p.material);
             });
 
-            // Populate category select
+            // Populate category select (filter) and form select
+            const formCategory = document.getElementById('p-category');
+            const existingFormOpts = formCategory ? Array.from(formCategory.options).map(o => o.value) : [];
+            
             categories.forEach(cat => {
                 const opt = document.createElement('option');
                 opt.value = cat;
                 opt.innerText = cat;
                 filterCategory.appendChild(opt);
+                
+                if (formCategory && !existingFormOpts.includes(cat) && cat !== 'Accesorios para Niña') {
+                    const newOpt = document.createElement('option');
+                    newOpt.value = cat;
+                    newOpt.innerText = cat;
+                    const newOptionEl = formCategory.querySelector('option[value="NEW"]');
+                    if (newOptionEl) {
+                        formCategory.insertBefore(newOpt, newOptionEl);
+                    } else {
+                        formCategory.appendChild(newOpt);
+                    }
+                }
             });
 
             // Populate material select
@@ -1244,6 +1360,16 @@
                 editBtn.innerText = 'Editar';
                 editBtn.addEventListener('click', () => openEditModal(p.code));
                 tdActions.appendChild(editBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'action-btn';
+                deleteBtn.style.marginLeft = '0.5rem';
+                deleteBtn.style.color = '#ff4444';
+                deleteBtn.style.borderColor = '#ff4444';
+                deleteBtn.innerText = 'Eliminar';
+                deleteBtn.addEventListener('click', () => deleteProduct(p.code));
+                tdActions.appendChild(deleteBtn);
+
                 tr.appendChild(tdActions);
 
                 tableBody.appendChild(tr);
@@ -1288,6 +1414,25 @@
                     addFiles(e.dataTransfer.files);
                 }
             });
+            // Subcategory and new category change handler
+            const formNewCategory = document.getElementById('p-new-category');
+            formCategory.addEventListener('change', () => {
+                if (formCategory.value === 'Piercings') {
+                    subcategoryContainer.style.display = 'block';
+                    formSubcategory.required = true;
+                } else {
+                    subcategoryContainer.style.display = 'none';
+                    formSubcategory.required = false;
+                }
+                
+                if (formCategory.value === 'NEW') {
+                    formNewCategory.style.display = 'block';
+                    formNewCategory.required = true;
+                } else {
+                    formNewCategory.style.display = 'none';
+                    formNewCategory.required = false;
+                }
+            });
 
             // Form Submit
             saveForm.addEventListener('submit', handleFormSubmit);
@@ -1308,7 +1453,12 @@
                 
                 if (window.db) {
                     try {
-                        await window.db.collection('products').doc(code).update({ active: isChecked });
+                        const updateData = { active: isChecked };
+                        if (isChecked) {
+                            updateData.restocked_at = Date.now();
+                            products[index].restocked_at = updateData.restocked_at;
+                        }
+                        await window.db.collection('products').doc(code).update(updateData);
                         showToast(isChecked ? 'Producto activado en la nube' : 'Producto pausado en la nube', 'success');
                     } catch (err) {
                         console.error("Firestore toggle failed:", err);
@@ -1323,23 +1473,118 @@
             }
         }
 
+        // --- Dynamic Options Logic ---
+        let currentDynamicOptions = [];
+
+        function renderDynamicOptions() {
+            const container = document.getElementById('dynamic-options-container');
+            container.innerHTML = '';
+            
+            if (currentDynamicOptions.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; margin: 0;">No hay opciones dinámicas configuradas.</p>';
+                return;
+            }
+
+            currentDynamicOptions.forEach((opt, index) => {
+                const optDiv = document.createElement('div');
+                optDiv.style.background = 'var(--bg-main)';
+                optDiv.style.padding = '1rem';
+                optDiv.style.borderRadius = '8px';
+                optDiv.style.border = '1px solid var(--border-color)';
+                optDiv.style.position = 'relative';
+
+                let html = `
+                    <button type="button" onclick="removeDynamicOption(${index})" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #ff4444; font-weight: bold; cursor: pointer; padding: 0.5rem;" title="Eliminar Campo">X</button>
+                    
+                    <div class="form-group" style="margin-bottom: 0.5rem; width: 90%;">
+                        <label>Título del Campo*</label>
+                        <input type="text" class="form-input" value="${opt.title || ''}" onchange="updateDynamicOption(${index}, 'title', this.value)" placeholder="Ej: Color del aro" required>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label>Tipo de Campo</label>
+                            <select class="form-input" onchange="updateDynamicOption(${index}, 'type', this.value)">
+                                <option value="text" ${opt.type === 'text' ? 'selected' : ''}>Texto Corto</option>
+                                <option value="select" ${opt.type === 'select' ? 'selected' : ''}>Lista Desplegable (Select)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: flex-start;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-top: 1.2rem;">
+                                <input type="checkbox" style="width:18px; height:18px;" ${opt.required ? 'checked' : ''} onchange="updateDynamicOption(${index}, 'required', this.checked)">
+                                <span style="font-size:0.9rem;">Es Obligatorio</span>
+                            </label>
+                        </div>
+                    </div>
+                `;
+
+                if (opt.type === 'select') {
+                    html += `
+                        <div class="form-group" style="margin-top: 0.5rem;">
+                            <label>Opciones de la lista (separadas por comas)</label>
+                            <input type="text" class="form-input" value="${(opt.choices || []).join(', ')}" onchange="updateDynamicOptionChoices(${index}, this.value)" placeholder="Dorado, Plata, Rose Gold">
+                            <small style="color:var(--text-muted); font-size:0.8rem;">Puedes poner precio extra así: <b>(+50)</b> para general, o <b>(+50M / +80C)</b> para Mayoreo/Cliente.</small>
+                        </div>
+                    `;
+                }
+
+                optDiv.innerHTML = html;
+                container.appendChild(optDiv);
+            });
+        }
+
+        function addDynamicOption() {
+            currentDynamicOptions.push({
+                title: '',
+                type: 'text',
+                required: false,
+                choices: []
+            });
+            renderDynamicOptions();
+        }
+
+        function removeDynamicOption(index) {
+            currentDynamicOptions.splice(index, 1);
+            renderDynamicOptions();
+        }
+
+        function updateDynamicOption(index, field, value) {
+            currentDynamicOptions[index][field] = value;
+            if (field === 'type') {
+                renderDynamicOptions();
+            }
+        }
+
+        function updateDynamicOptionChoices(index, value) {
+            currentDynamicOptions[index].choices = value.split(',').map(s => s.trim()).filter(s => s);
+        }
+
         // Open modal to add product
         function openAddModal() {
             isEditing = false;
             currentEditCode = '';
             selectedImages = [];
+            currentDynamicOptions = [];
             saveForm.reset();
             formCode.disabled = false;
             formMultiAritos.checked = false;
-            formAritosPriceMayoreo.value = '';
-            formAritosPriceCliente.value = '';
+            document.getElementById('p-aritos-base-count').value = '2';
+            document.getElementById('p-aritos-price-mayoreo').value = '';
+            document.getElementById('p-aritos-price-cliente').value = '';
             document.getElementById('aritos-price-container').style.display = 'none';
             formMultiPlaquitas.checked = false;
+            document.getElementById('p-plaquitas-base-count').value = '1';
             formPlaquitasPriceMayoreo.value = '';
             formPlaquitasPriceCliente.value = '';
             document.getElementById('plaquitas-price-container').style.display = 'none';
             formRequiresInitial.checked = false;
+            document.getElementById('p-is-personalized').checked = false;
+            document.getElementById('p-allows-photo').checked = false;
+            document.getElementById('p-is-mens').checked = false;
+            document.getElementById('p-show-in-personalized').checked = false;
+            document.getElementById('p-exclude-new-arrivals').checked = false;
             document.getElementById('p-allows-extra-kids').checked = false;
+            document.getElementById('p-requires-base-kid').checked = false;
             document.getElementById('p-extra-kid-price-mayoreo').value = '';
             document.getElementById('p-extra-kid-price-cliente').value = '';
             document.getElementById('extra-kid-price-container').style.display = 'none';
@@ -1347,6 +1592,7 @@
             colorVariants = [];
             renderVariants();
             renderImagePreviews();
+            renderDynamicOptions();
             modal.classList.add('active');
         }
 
@@ -1361,8 +1607,27 @@
             if (!prod) return;
 
             formCode.value = prod.code;
-            formCode.disabled = true; // Code cannot be modified when editing
+            formCode.disabled = false; // Permitir modificar código
             formCategory.value = prod.category || 'Collares';
+            if (!formCategory.value && prod.category) {
+                // If somehow it's missing (though it shouldn't if populateFilters ran)
+                const opt = document.createElement('option');
+                opt.value = prod.category;
+                opt.innerText = prod.category;
+                const newOptionEl = formCategory.querySelector('option[value="NEW"]');
+                if (newOptionEl) formCategory.insertBefore(opt, newOptionEl);
+                else formCategory.appendChild(opt);
+                formCategory.value = prod.category;
+            }
+            if (prod.category === 'Piercings') {
+                subcategoryContainer.style.display = 'block';
+                formSubcategory.required = true;
+                formSubcategory.value = prod.subcategory || '';
+            } else {
+                subcategoryContainer.style.display = 'none';
+                formSubcategory.required = false;
+                formSubcategory.value = '';
+            }
             formIsPersonalized.checked = prod.is_personalized === true || prod.subcategory === 'Personalizados';
             formIsMens.checked = prod.is_mens === true || prod.subcategory === 'Hombre' || prod.subcategory === 'Accesorios Hombre';
             formMaterial.value = prod.material || 'Acero Inoxidable';
@@ -1371,20 +1636,31 @@
             formPriceCliente.placeholder = (prod.price_mayoreo || 0) * 2;
             formDetails.value = prod.details || '';
             formMultiAritos.checked = prod.multi_aritos === true;
-            formAritosPriceMayoreo.value = prod.aritos_price_mayoreo || '';
-            formAritosPriceCliente.value = prod.aritos_price_cliente || '';
-            document.getElementById('aritos-price-container').style.display = prod.multi_aritos ? 'flex' : 'none';
+            document.getElementById('p-aritos-base-count').value = prod.aritos_base_count || '2';
+            document.getElementById('p-aritos-price-mayoreo').value = prod.aritos_price_mayoreo || '';
+            document.getElementById('p-aritos-price-cliente').value = prod.aritos_price_cliente || '';
+            document.getElementById('aritos-price-container').style.display = prod.multi_aritos ? 'grid' : 'none';
             
             formMultiPlaquitas.checked = prod.multi_plaquitas === true;
+            document.getElementById('p-plaquitas-base-count').value = prod.plaquitas_base_count || '1';
             formPlaquitasPriceMayoreo.value = prod.plaquitas_price_mayoreo || '';
             formPlaquitasPriceCliente.value = prod.plaquitas_price_cliente || '';
-            document.getElementById('plaquitas-price-container').style.display = prod.multi_plaquitas ? 'flex' : 'none';
+            document.getElementById('plaquitas-price-container').style.display = prod.multi_plaquitas ? 'grid' : 'none';
             formRequiresInitial.checked = prod.requires_initial === true;
             document.getElementById('p-allows-extra-kids').checked = prod.allows_extra_kids === true;
+            document.getElementById('p-requires-base-kid').checked = prod.requires_base_kid === true;
+            document.getElementById('p-is-personalized').checked = !!prod.is_personalized;
+            document.getElementById('p-allows-photo').checked = !!prod.allows_photo_engraving;
+            document.getElementById('p-is-mens').checked = !!prod.is_mens;
+            document.getElementById('p-show-in-personalized').checked = !!prod.show_in_personalized;
+            document.getElementById('p-exclude-new-arrivals').checked = !!prod.exclude_new_arrivals;
             document.getElementById('p-extra-kid-price-mayoreo').value = prod.extra_kid_price_mayoreo || '';
             document.getElementById('p-extra-kid-price-cliente').value = prod.extra_kid_price_cliente || '';
             document.getElementById('extra-kid-price-container').style.display = prod.allows_extra_kids ? 'block' : 'none';
             document.getElementById('p-is-seasonal').checked = prod.isSeasonal === true;
+
+            currentDynamicOptions = JSON.parse(JSON.stringify(prod.dynamic_options || []));
+            renderDynamicOptions();
 
             document.getElementById('modal-heading').innerText = `Editar Producto: ${code}`;
 
@@ -1613,19 +1889,36 @@
             if (e) e.preventDefault();
             const code = formCode.value.toUpperCase().trim();
             const material = formMaterial.value;
-            const category = formCategory.value;
+            let category = formCategory.value;
+            const formNewCategory = document.getElementById('p-new-category');
+            if (category === 'NEW') {
+                category = formNewCategory.value.trim();
+                if (!category) {
+                    showNotification('Por favor escribe el nombre de la nueva categoría.', 'error');
+                    return;
+                }
+            }
+            const subcategoryVal = formSubcategory.value;
             const is_personalized = formIsPersonalized.checked;
+            const allows_photo_engraving = document.getElementById('p-allows-photo').checked;
             const is_mens = formIsMens.checked;
             const priceMayoreo = parseInt(formPriceMayoreo.value);
             let priceCliente = parseInt(formPriceCliente.value);
-            const multiAritos = formMultiAritos.checked;
-            const aritosPriceMayoreo = parseFloat(formAritosPriceMayoreo.value) || 0;
-            const aritosPriceCliente = parseFloat(formAritosPriceCliente.value) || 0;
-            const multiPlaquitas = formMultiPlaquitas.checked;
+            const multiAritos = document.getElementById('p-multi-aritos').checked;
+            const aritosBaseCount = parseInt(document.getElementById('p-aritos-base-count').value) || 2;
+            const aritosPriceMayoreo = parseFloat(document.getElementById('p-aritos-price-mayoreo').value) || 0;
+            const aritosPriceCliente = parseFloat(document.getElementById('p-aritos-price-cliente').value) || 0;
+            const multiPlaquitas = document.getElementById('p-multi-plaquitas').checked;
+            const plaquitasBaseCount = parseInt(document.getElementById('p-plaquitas-base-count').value) || 1;
             const plaquitasPriceMayoreo = parseFloat(formPlaquitasPriceMayoreo.value) || 0;
             const plaquitasPriceCliente = parseFloat(formPlaquitasPriceCliente.value) || 0;
             const requiresInitial = formRequiresInitial.checked;
             const allowsExtraKids = document.getElementById('p-allows-extra-kids').checked;
+            const requiresBaseKid = document.getElementById('p-requires-base-kid').checked;
+            const isPhotoEngraving = document.getElementById('p-allows-photo').checked;
+            const isMens = document.getElementById('p-is-mens').checked;
+            const showInPersonalized = document.getElementById('p-show-in-personalized').checked;
+            const excludeNewArrivals = document.getElementById('p-exclude-new-arrivals').checked;
             const extraKidPriceMayoreo = parseInt(document.getElementById('p-extra-kid-price-mayoreo').value) || 0;
             const extraKidPriceCliente = parseInt(document.getElementById('p-extra-kid-price-cliente').value) || 0;
             const isSeasonal = document.getElementById('p-is-seasonal').checked;
@@ -1646,6 +1939,18 @@
 
             let imageUrls = selectedImages.filter(img => img.type === 'existing').map(img => img.url);
             const newFiles = selectedImages.filter(img => img.type === 'new');
+
+            // Helper to delete a file from Firebase Storage by URL
+            async function deleteStorageFileByUrl(url) {
+                if (!url || !url.includes('firebasestorage.googleapis.com') || !window.storage) return;
+                try {
+                    const storageRef = window.storage.refFromURL(url);
+                    await storageRef.delete();
+                    console.log('Deleted orphaned image:', url);
+                } catch (err) {
+                    console.warn('Failed to delete image:', url, err);
+                }
+            }
 
             // Helper to upload files
             async function uploadFilesHelper(filesToUpload, prefixStr = '') {
@@ -1721,7 +2026,7 @@
             }
 
             // Filter out empty variants
-            const finalVariants = colorVariants.filter(v => v.name && v.url).map(v => ({ name: v.name, image: v.url, in_stock: v.in_stock !== false }));
+            const finalVariants = colorVariants.filter(v => v.name).map(v => ({ name: v.name, image: v.url || '', in_stock: v.in_stock !== false }));
 
             const hasImage = imageUrls.length > 0;
             const mainImage = imageUrls[0] || '';
@@ -1734,14 +2039,18 @@
                     const existingProd = products[index];
                     products[index] = {
                         ...existingProd,
+                        code: code,
                         category,
+                        subcategory: category === 'Piercings' ? subcategoryVal : (existingProd.subcategory || null),
                         is_personalized,
+                        allows_photo_engraving,
                         is_mens,
                         material,
                         price_mayoreo: priceMayoreo,
                         price_cliente: priceCliente,
                         details,
                         multi_aritos: multiAritos,
+                        aritos_base_count: aritosBaseCount,
                         aritos_price_mayoreo: aritosPriceMayoreo,
                         aritos_price_cliente: aritosPriceCliente,
                         multi_plaquitas: multiPlaquitas,
@@ -1750,42 +2059,63 @@
                         aritos_price_mayoreo: aritosPriceMayoreo,
                         aritos_price_cliente: aritosPriceCliente,
                         multi_plaquitas: multiPlaquitas,
+                        plaquitas_base_count: plaquitasBaseCount,
                         plaquitas_price_mayoreo: plaquitasPriceMayoreo,
                         plaquitas_price_cliente: plaquitasPriceCliente,
                         requires_initial: requiresInitial,
                         allows_extra_kids: allowsExtraKids,
+                        requires_base_kid: requiresBaseKid,
                         extra_kid_price_mayoreo: extraKidPriceMayoreo,
                         extra_kid_price_cliente: extraKidPriceCliente,
                         isSeasonal: isSeasonal,
                         updated_at: Date.now(),
                         active: existingProd.active !== false,
-                        created_at: existingProd.created_at || Date.now(),
                         has_image: hasImage,
                         image: mainImage,
                         images: imageUrls,
-                        color_variants: finalVariants
+                        color_variants: finalVariants,
+                        show_in_personalized: showInPersonalized,
+                        exclude_new_arrivals: excludeNewArrivals,
+                        dynamic_options: currentDynamicOptions
                     };
                     targetProductObj = products[index];
+
+                    // Clean up orphaned images from Storage
+                    const oldImages = [
+                        ...(existingProd.images || []),
+                        ...(existingProd.color_variants || []).map(v => v.image).filter(Boolean)
+                    ];
+                    const newImages = [
+                        ...(targetProductObj.images || []),
+                        ...(targetProductObj.color_variants || []).map(v => v.image).filter(Boolean)
+                    ];
+                    const orphanedImages = oldImages.filter(url => !newImages.includes(url));
+                    orphanedImages.forEach(url => deleteStorageFileByUrl(url));
                 }
             } else {
                 // Add new product
                 const newProduct = {
                     code,
                     category,
+                    ...(category === 'Piercings' ? { subcategory: subcategoryVal } : {}),
                     is_personalized,
+                    allows_photo_engraving,
                     is_mens,
                     material,
                     price_mayoreo: priceMayoreo,
                     price_cliente: priceCliente,
                     details,
                     multi_aritos: multiAritos,
+                    aritos_base_count: aritosBaseCount,
                     aritos_price_mayoreo: aritosPriceMayoreo,
                     aritos_price_cliente: aritosPriceCliente,
                     multi_plaquitas: multiPlaquitas,
+                    plaquitas_base_count: plaquitasBaseCount,
                     plaquitas_price_mayoreo: plaquitasPriceMayoreo,
                     plaquitas_price_cliente: plaquitasPriceCliente,
                     requires_initial: requiresInitial,
                     allows_extra_kids: allowsExtraKids,
+                    requires_base_kid: requiresBaseKid,
                     extra_kid_price_mayoreo: extraKidPriceMayoreo,
                     extra_kid_price_cliente: extraKidPriceCliente,
                     isSeasonal: isSeasonal,
@@ -1794,6 +2124,10 @@
                     images: imageUrls,
                     color_variants: finalVariants,
                     active: true,
+                    is_mens: isMens,
+                    show_in_personalized: showInPersonalized,
+                    exclude_new_arrivals: excludeNewArrivals,
+                    dynamic_options: currentDynamicOptions,
                     created_at: Date.now()
                 };
                 products.push(newProduct);
@@ -1805,6 +2139,12 @@
             if (window.db && targetProductObj) {
                 try {
                     showToast('Guardando en la nube...', 'success');
+                    
+                    // Si se cambió el código, hay que borrar el documento anterior para no duplicarlo
+                    if (isEditing && currentEditCode && currentEditCode !== targetProductObj.code) {
+                        await window.db.collection('products').doc(currentEditCode).delete();
+                    }
+                    
                     await window.db.collection('products').doc(targetProductObj.code).set(targetProductObj);
                     saved = true;
                     showToast(isEditing ? 'Producto actualizado en la nube' : 'Producto agregado en la nube', 'success');
@@ -1820,6 +2160,45 @@
                 closeModal();
                 renderTable();
                 updateStats();
+            }
+        }
+
+        // Delete a product
+        async function deleteProduct(code) {
+            if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente el producto ${code}? Esta acción no se puede deshacer.`)) {
+                return;
+            }
+
+            try {
+                // Delete from local array
+                const index = products.findIndex(p => p.code === code);
+                let deletedProduct = null;
+                if (index !== -1) {
+                    deletedProduct = products[index];
+                    products.splice(index, 1);
+                }
+
+                // Delete from Firestore
+                if (window.db) {
+                    await window.db.collection('products').doc(code).delete();
+                    showToast('Producto eliminado de la nube', 'success');
+                } else {
+                    await saveDatabase();
+                }
+
+                if (deletedProduct) {
+                    const oldImages = [
+                        ...(deletedProduct.images || []),
+                        ...(deletedProduct.color_variants || []).map(v => v.image).filter(Boolean)
+                    ];
+                    oldImages.forEach(url => deleteStorageFileByUrl(url));
+                }
+
+                renderTable();
+                updateStats();
+            } catch (err) {
+                console.error("Error eliminando producto:", err);
+                showToast(`Error al eliminar: ${err.message}`, 'error');
             }
         }
 

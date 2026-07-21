@@ -8,9 +8,9 @@
     --bg-main: #f9f9fa;
     --bg-card: #ffffff;
     --bg-header: #35363A;
-    --gold-primary: #c5a059;
-    --gold-hover: #b38f4b;
-    --gold-light: #f5e4a3;
+    --gold-primary: #d498a5; /* Rosa Metálico / Rose Gold */
+    --gold-hover: #bd818e;
+    --gold-light: #fce8eb;
     --text-primary: #2c2c2e;
     --text-muted: #7e7e80;
     --text-dark: #2c2c2e;
@@ -1358,6 +1358,13 @@ footer.main-footer {
     }
     .horizontal-carousel .product-card {
         flex: 0 0 145px; /* Smaller cards on mobile, matching grid size */
+    }
+}
+
+/* Hide Modal Carousel Arrows on Mobile (Use Swipe) */
+@media (max-width: 768px) {
+    .modal-carousel-nav-btn {
+        display: none !important;
     }
 }
 

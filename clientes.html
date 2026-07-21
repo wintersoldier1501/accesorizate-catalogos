@@ -3,15 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Catálogo digital interactivo de joyería fina. Explora aretes, collares, anillos, pulseras y accesorios grabados de alta calidad.">
-    <title>Catálogo Digital - Joyería Premium</title>
+    <meta name="description" content="Catálogo digital interactivo de joyería personalizada. Explora aretes, collares, anillos, pulseras y accesorios grabados de alta calidad.">
+    
+    <!-- Open Graph / Previsualización para WhatsApp y Redes Sociales -->
+    <meta property="og:title" content="Catálogo Digital - Joyería Personalizada">
+    <meta property="og:description" content="Catálogo digital interactivo de joyería personalizada. Explora aretes, collares, anillos, pulseras y accesorios grabados de alta calidad.">
+    <meta property="og:image" content="https://catalogos-accesorios.web.app/logo/clientes-preview-web.jpg">
+    <meta property="og:type" content="website">
+
+    <title>Catálogo Digital - Joyería Personalizada</title>
     <link rel="stylesheet" href="index.css?v=1.3">
     <style>
         /* Custom overrides to keep it completely unbranded */
         .brand-title {
             color: var(--gold-primary);
             font-size: 1.5rem;
-            letter-spacing: 0.2em;
+            letter-spacing: 0.15em;
+        }
+        @media (max-width: 768px) {
+            .brand-title {
+                font-size: 1.1rem;
+                letter-spacing: 0.1em;
+            }
         }
         .header-top {
             margin-bottom: 0.5rem;
@@ -22,7 +35,7 @@
 
     <!-- Header Visible only on Print to PDF (unbranded) -->
     <div class="print-header" style="display: none;">
-        <h1 class="print-brand-title">Colección Joyería Fina</h1>
+        <h1 class="print-brand-title">Catálogo Joyería Personalizada</h1>
         <span class="print-catalog-type">Catálogo General</span>
     </div>
 
@@ -32,7 +45,7 @@
             <div class="header-top">
                 <div class="brand-section">
                     <!-- No logo for reseller white-labeling -->
-                    <h1 class="brand-title">Joyería Fina</h1>
+                    <h1 class="brand-title">Joyería Personalizada</h1>
                 </div>
                 <button id="cart-toggle-btn" class="cart-toggle-btn" aria-label="Ver pedido">
                     <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
@@ -52,7 +65,7 @@
                             <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
                         </svg>
                     </span>
-                    <input type="text" id="search-input" class="search-input" placeholder="Buscar código o modelo...">
+                    <input type="text" id="search-input" class="search-input" placeholder="Buscar código o producto...">
                 </div>
 
                 <!-- Category Filters -->
@@ -73,6 +86,7 @@
                     <button class="filter-btn active" data-material="all">Todos los Materiales</button>
                     <button class="filter-btn" data-material="Acero Inoxidable">Acero Inox.</button>
                     <button class="filter-btn" data-material="Chapa de Oro">Chapa de Oro</button>
+                    <button class="filter-btn" data-material="Chapa con Acero">Acero con Chapa</button>
                     <button class="filter-btn" data-material="Oro 10K">Oro 10K</button>
                     <button class="filter-btn" data-material="Aleación de Metales">Aleaciones</button>
                 </div>

@@ -4,7 +4,8 @@
 
 // Configuration
 const CONFIG = {
-    whatsappPhone: "", // Optional: Add phone number with country code, e.g. "5216181234567"
+    whatsappPhoneMayoreo: "5216181071740", // Número de Accesorízate Mayoreo
+    whatsappPhoneClientes: "", // Vacío para que el cliente elija a quién enviarlo
     minPurchaseMayoreo: 800,
     itemsPerPage: 24
 };
@@ -121,6 +122,7 @@ async function fetchProducts() {
     if (window.productsData) {
         console.log("Loaded products database from local productsData variable.");
         products = window.productsData;
+        initDynamicCategories();
         applyFilters();
         return;
     }
@@ -129,6 +131,7 @@ async function fetchProducts() {
     if (window.PRODUCTS_DATA) {
         console.log("Loaded products database from local PRODUCTS_DATA script tag.");
         products = window.PRODUCTS_DATA;
+        initDynamicCategories();
         applyFilters();
         return;
     }
@@ -140,6 +143,7 @@ async function fetchProducts() {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         products = await response.json();
+        initDynamicCategories();
         applyFilters();
     } catch (error) {
         console.error("Could not fetch products database:", error);
@@ -152,14 +156,46 @@ async function fetchProducts() {
     }
 }
 
+// Dynamically add category buttons for new custom categories found in DB
+function initDynamicCategories() {
+    if (!elements.categoryFilters) return;
+    
+    const existingBtns = Array.from(elements.categoryFilters.querySelectorAll('.filter-btn')).map(b => b.dataset.category);
+    const uniqueCategories = new Set();
+    
+    products.forEach(p => {
+        if (p.category && p.active !== false) {
+            uniqueCategories.add(p.category);
+        }
+    });
+    
+    const personalBtn = elements.categoryFilters.querySelector('[data-category="Personalizados"]');
+    
+    uniqueCategories.forEach(cat => {
+        if (!existingBtns.includes(cat) && cat !== 'Accesorios para Niña') {
+            const btn = document.createElement('button');
+            btn.className = 'filter-btn';
+            btn.dataset.category = cat;
+            btn.textContent = cat;
+            if (personalBtn) {
+                elements.categoryFilters.insertBefore(btn, personalBtn);
+            } else {
+                elements.categoryFilters.appendChild(btn);
+            }
+        }
+    });
+}
+
 // Setup all UI Event Listeners
 function setupEventListeners() {
     // Search
-    elements.searchInput.addEventListener('input', (e) => {
-        window.showingSeasonalOnly = false;
-        searchQuery = e.target.value.toLowerCase().trim();
-        applyFilters();
-    });
+    if (elements.searchInput) {
+        elements.searchInput.addEventListener('input', (e) => {
+            window.showingSeasonalOnly = false;
+            searchQuery = e.target.value.toLowerCase().trim();
+            applyFilters();
+        });
+    }
     
     // Category Filtering
     if (elements.categoryFilters) {
@@ -236,15 +272,15 @@ function applyFilters() {
     } else if (activeCategory === 'all' && searchQuery === '') {
         // Homepage Browse View (Todos / no search)
         // 1. Get all active standard products (excluding Personalized and Niñas)
-        const standardProducts = products.filter(p => {
-            if (p.active === false) return false;
-            
-            const isPersonalized = p.is_personalized === true || (['Collares', 'Llaveros'].includes(p.category) && p.subcategory === 'Personalizados') ||
-                                   (p.details && p.details.toLowerCase().includes('graba'));
-            const isNiña = p.category === 'Accesorios para Niña';
-            
-            return !isPersonalized && !isNiña;
-        });
+            const standardProducts = products.filter(p => {
+                if (p.active === false) return false;
+                
+                const isLegacyPersonalized = p.is_personalized === undefined && (['Collares', 'Llaveros'].includes(p.category) && p.subcategory === 'Personalizados');
+                const isCategoryPersonalized = p.show_in_personalized === true || p.is_personalized === true || isLegacyPersonalized ||
+                                       (p.details && p.details.toLowerCase().includes('graba')) || p.allows_photo_engraving === true;
+                
+                return !isCategoryPersonalized;
+            });
 
         // 2. Sort the entire list by newness (manually created first, then by code number descending)
         standardProducts.sort((a, b) => {
@@ -255,16 +291,26 @@ function applyFilters() {
             if (timeB > 0) return 1;
             return getCodeNumber(b.code) - getCodeNumber(a.code);
         });
-
-        // Extract top 20 newest for Recién Llegados carousel (strictly highest code numbers)
-        const sortedByCode = [...standardProducts].sort((a, b) => getCodeNumber(b.code) - getCodeNumber(a.code));
-        window.homepageNewest = sortedByCode.slice(0, 20);
+        const allActiveProducts = products.filter(p => p.active !== false);
+        
+        // Extract top 20 newest for Recién Llegados carousel
+        const sortedByNewness = [...allActiveProducts].filter(p => p.exclude_new_arrivals !== true).sort((a, b) => {
+            const timeA = a.created_at || 0;
+            const timeB = b.created_at || 0;
+            if (timeA > 0 && timeB > 0) return timeB - timeA;
+            if (timeA > 0) return -1;
+            if (timeB > 0) return 1;
+            return getCodeNumber(b.code) - getCodeNumber(a.code);
+        });
+        window.homepageNewest = sortedByNewness.slice(0, 20);
         
         // (Seasonal extraction logic moved to dedicated view)
         
-        // Extract top 20 most viewed for Tendencias carousel
-        const trending = [...standardProducts].sort((a, b) => (b.views || 0) - (a.views || 0));
-        window.homepageTrending = trending.slice(0, 20);
+        // Extract top 20 for Restock carousel
+        const restockProducts = allActiveProducts
+            .filter(p => p.restocked_at)
+            .sort((a, b) => b.restocked_at - a.restocked_at);
+        window.homepageTrending = restockProducts.slice(0, 20);
 
         // 3. Mark all of them with displaySubcategory = 'CATÁLOGO COMPLETO'
         filteredProducts = standardProducts.map(p => ({
@@ -289,8 +335,9 @@ function applyFilters() {
         filteredProducts = products.filter(p => {
             if (p.active === false) return false;
 
-            const isPersonalized = p.is_personalized === true || (['Collares', 'Llaveros'].includes(p.category) && p.subcategory === 'Personalizados') ||
-                                   (p.details && p.details.toLowerCase().includes('graba'));
+            const isLegacyPersonalized = p.is_personalized === undefined && (['Collares', 'Llaveros'].includes(p.category) && p.subcategory === 'Personalizados');
+            const isCategoryPersonalized = p.show_in_personalized === true || p.is_personalized === true || isLegacyPersonalized ||
+                                   (p.details && p.details.toLowerCase().includes('graba')) || p.allows_photo_engraving === true;
 
             // Search match (code or details)
             const matchesSearch = searchQuery === '' || 
@@ -300,7 +347,7 @@ function applyFilters() {
             // Category match
             const matchesCategory = activeCategory === 'all' || 
                                     (activeCategory.toLowerCase() === 'personalizados' ? 
-                                        isPersonalized : 
+                                        isCategoryPersonalized : 
                                         (activeCategory.toLowerCase() === 'hombre' ? 
                                             (p.is_mens === true || p.subcategory === 'Accesorios Hombre' || p.subcategory === 'Hombre') : 
                                             p.category.toLowerCase() === activeCategory.toLowerCase()));
@@ -313,12 +360,48 @@ function applyFilters() {
             return matchesSearch && matchesCategory && matchesMaterial;
         });
 
-        // Remove displaySubcategory to use original PowerPoint subcategory grouping
-        filteredProducts = filteredProducts.map(p => {
-            const { displaySubcategory, ...rest } = p;
-            return rest;
-        });
+        if (activeCategory === 'Piercings') {
+            const piercingOrder = { 'Stud': 1, 'Huggie': 2, 'Earcuff': 3 };
+            
+            // Sort by subcategory order
+            filteredProducts.sort((a, b) => {
+                const subA = a.subcategory || 'Otros';
+                const subB = b.subcategory || 'Otros';
+                const orderA = piercingOrder[subA] || 99;
+                const orderB = piercingOrder[subB] || 99;
+                return orderA - orderB;
+            });
+            
+            // Assign displaySubcategory for grouping headers
+            filteredProducts = filteredProducts.map(p => ({
+                ...p,
+                displaySubcategory: (p.subcategory === 'Stud' || p.subcategory === 'Huggie' || p.subcategory === 'Earcuff') 
+                                    ? p.subcategory.toUpperCase() 
+                                    : 'OTROS'
+            }));
+        } else {
+            // Remove displaySubcategory for other categories so they don't show headers
+            filteredProducts = filteredProducts.map(p => {
+                const { displaySubcategory, ...rest } = p;
+                return rest;
+            });
+        }
     }
+    
+    // Apply global sort by code number (oldest first)
+    filteredProducts.sort((a, b) => {
+        // If sorting Piercings, preserve the subcategory grouping
+        if (activeCategory === 'Piercings') {
+            const piercingOrder = { 'Stud': 1, 'Huggie': 2, 'Earcuff': 3 };
+            const subA = a.subcategory || 'Otros';
+            const subB = b.subcategory || 'Otros';
+            const orderA = piercingOrder[subA] || 99;
+            const orderB = piercingOrder[subB] || 99;
+            if (orderA !== orderB) return 0; 
+        }
+        
+        return getCodeNumber(a.code) - getCodeNumber(b.code);
+    });
     
     // Reset Grid
     elements.productsGrid.innerHTML = '';
@@ -401,24 +484,24 @@ function renderNextPage() {
         newCarouselWrap.appendChild(newCarousel);
         fragment.appendChild(newCarouselWrap);
 
-        // Tendencias Carousel
-        const trendHeaderDiv = document.createElement('div');
-        trendHeaderDiv.className = 'section-header';
-        trendHeaderDiv.style.gridColumn = '1 / -1';
-        trendHeaderDiv.innerHTML = `<h2 class="section-title">Más Vistos</h2>`;
-        fragment.appendChild(trendHeaderDiv);
+        // Tendencias / Restock Carousel
+        if (window.homepageTrending && window.homepageTrending.length > 0) {
+            const trendHeaderDiv = document.createElement('div');
+            trendHeaderDiv.className = 'section-header';
+            trendHeaderDiv.style.gridColumn = '1 / -1';
+            trendHeaderDiv.innerHTML = `<h2 class="section-title">RESTOCK</h2>`;
+            fragment.appendChild(trendHeaderDiv);
 
-        const trendCarouselWrap = document.createElement('div');
-        trendCarouselWrap.style.gridColumn = '1 / -1';
-        const trendCarousel = document.createElement('div');
-        trendCarousel.className = 'horizontal-carousel';
-        if (window.homepageTrending) {
+            const trendCarouselWrap = document.createElement('div');
+            trendCarouselWrap.style.gridColumn = '1 / -1';
+            const trendCarousel = document.createElement('div');
+            trendCarousel.className = 'horizontal-carousel';
             window.homepageTrending.forEach(prod => {
                 trendCarousel.appendChild(createProductCard(prod));
             });
+            trendCarouselWrap.appendChild(trendCarousel);
+            fragment.appendChild(trendCarouselWrap);
         }
-        trendCarouselWrap.appendChild(trendCarousel);
-        fragment.appendChild(trendCarouselWrap);
     }
 
     // We group items under subcategory sections if rendering general view without search
@@ -463,9 +546,22 @@ function getProductLabel(product) {
     else if (cat.includes('piercing')) label = 'PIERCING';
     else if (cat.includes('anillo')) label = 'ANILLO';
     else if (cat.includes('pulsera')) label = 'PULSERA';
+    else if (cat.includes('llavero')) label = 'LLAVERO';
     
     if (label) {
         return `${label} - ${product.code}`;
+    }
+    
+    // Fallback: Try to singularize any unknown category by removing trailing 's' if it exists
+    let singularCat = product.category ? product.category.toUpperCase() : '';
+    if (singularCat && singularCat.endsWith('S') && singularCat !== 'PIERCINGS') {
+        singularCat = singularCat.slice(0, -1);
+    }
+    if (singularCat === 'PIERCINGS') singularCat = 'PIERCING';
+    if (singularCat === 'ARETES') singularCat = 'ARETE';
+    
+    if (singularCat && singularCat !== 'HOMBRE' && singularCat !== 'PERSONALIZADO') {
+        return `${singularCat} - ${product.code}`;
     }
     
     return product.code;
@@ -521,11 +617,14 @@ function createProductCard(product) {
     addToCartBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const hasVariants = product.color_variants && product.color_variants.length > 0;
-        const isPersonalized = product.is_personalized === true || (['Collares', 'Llaveros'].includes(product.category) && product.subcategory === 'Personalizados') ||
-                               (product.details && product.details.toLowerCase().includes('graba')) ||
-                               product.multi_aritos === true || product.multi_plaquitas === true || product.requires_initial === true || hasVariants;
+        const isLegacyPersonalized = product.is_personalized === undefined && (['Collares', 'Llaveros'].includes(product.category) && product.subcategory === 'Personalizados');
+        const isCategoryPersonalized = product.show_in_personalized === true || product.is_personalized === true || isLegacyPersonalized ||
+                               (product.details && product.details.toLowerCase().includes('graba')) || product.allows_photo_engraving === true ||
+                               product.multi_aritos === true || product.multi_plaquitas === true || product.requires_initial === true ||
+                               product.requires_base_kid === true || product.allows_extra_kids === true || hasVariants ||
+                               (product.dynamic_options && product.dynamic_options.length > 0);
         
-        if (isPersonalized) {
+        if (isCategoryPersonalized) {
             openModal(product);
             return;
         }
@@ -549,6 +648,21 @@ function createProductCard(product) {
 
 // Render dynamic customization fields based on product settings
 function renderCustomizationFields(product, price, customSection) {
+    let photoHtml = '';
+    if (product.allows_photo_engraving === true) {
+        photoHtml = `
+            <div class="custom-field" style="margin-bottom: 1.5rem; background-color: rgba(197, 160, 89, 0.05); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                <label style="font-weight: 600; color: var(--gold-primary); display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0;">
+                    <input type="checkbox" id="custom-photo-check" style="width: 18px; height: 18px; cursor: pointer;">
+                    <span>¿Quieres grabar una foto o dibujo?</span>
+                </label>
+                <div style="font-size: 0.85rem; color: #aaaaaa; margin-top: 0.4rem; margin-left: 1.8rem; line-height: 1.3;">
+                    (Envíala por WhatsApp al momento de hacer tu pedido)
+                </div>
+            </div>
+        `;
+    }
+
     const isMultiAritos = product.multi_aritos === true;
     const isMultiPlaquitas = product.multi_plaquitas === true;
     
@@ -556,7 +670,7 @@ function renderCustomizationFields(product, price, customSection) {
         const itemType = isMultiAritos ? 'Aros' : 'Plaquitas';
         const itemTypeSingular = isMultiAritos ? 'Aro' : 'Plaquita';
         const maxItems = 5;
-        const baseItems = isMultiAritos ? 2 : 1;
+        const baseItems = isMultiAritos ? (parseInt(product.aritos_base_count) || 2) : (parseInt(product.plaquitas_base_count) || 1);
         const extraPriceMayoreo = isMultiAritos ? (product.aritos_price_mayoreo || 0) : (product.plaquitas_price_mayoreo || 0);
         const extraPriceCliente = isMultiAritos ? (product.aritos_price_cliente || 0) : (product.plaquitas_price_cliente || 0);
         const unitExtraPrice = mode === 'mayoreo' ? extraPriceMayoreo : extraPriceCliente;
@@ -572,6 +686,7 @@ function renderCustomizationFields(product, price, customSection) {
         }
         
         customSection.innerHTML = `
+            ${photoHtml}
             <div class="custom-field">
                 <label for="aritos-count" style="font-weight: 600; color: var(--gold-primary);">Cantidad de ${itemType}:</label>
                 <select id="aritos-count" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 1rem; width: 100%; cursor: pointer;">
@@ -639,6 +754,7 @@ function renderCustomizationFields(product, price, customSection) {
     } else {
         // Standard personalization
         customSection.innerHTML = `
+            ${photoHtml}
             <div class="custom-field">
                 <label for="custom-text">Texto para Grabado (nombres, fechas, iniciales):</label>
                 <input type="text" id="custom-text" placeholder="Escribe el nombre o texto a grabar...">
@@ -714,9 +830,128 @@ function renderCustomizationFields(product, price, customSection) {
             });
         });
     }
+    
+    // 2. Live Preview Box
+    if (product.requires_initial !== true) {
+        const livePreviewDiv = document.createElement('div');
+        livePreviewDiv.id = "live-preview-box";
+        livePreviewDiv.style.marginTop = "1.5rem";
+        livePreviewDiv.style.padding = "1.5rem 1rem";
+        livePreviewDiv.style.border = "1px dashed rgba(212, 175, 55, 0.5)";
+        livePreviewDiv.style.borderRadius = "8px";
+        livePreviewDiv.style.textAlign = "center";
+        livePreviewDiv.style.background = "rgba(0,0,0,0.3)";
+        livePreviewDiv.style.minHeight = "80px";
+        livePreviewDiv.style.display = "flex";
+        livePreviewDiv.style.alignItems = "center";
+        livePreviewDiv.style.justifyContent = "center";
+        livePreviewDiv.style.flexDirection = "column";
+        livePreviewDiv.innerHTML = `
+            <span style="font-size: 0.75rem; color: var(--gold-primary); margin-bottom: 0.8rem; display: block; text-transform: uppercase; letter-spacing: 1px;">Previsualización de Grabado</span>
+            <span id="live-preview-text" class="font-basica" style="font-size: 2.5rem; color: #fff; word-break: break-word; line-height: 1.2;">Tu Nombre</span>
+        `;
+        customSection.appendChild(livePreviewDiv);
+        
+        const previewText = livePreviewDiv.querySelector('#live-preview-text');
+        const radios = customSection.querySelectorAll('input[type=radio]');
+        
+        const updatePreview = () => {
+            const allInputs = customSection.querySelectorAll('input[type="text"]');
+            let vals = [];
+            allInputs.forEach(inp => { if(inp.value.trim()) vals.push(inp.value.trim()); });
+            previewText.innerHTML = vals.length ? vals.join('<br>') : 'Tu Nombre';
+        };
+        
+        customSection.addEventListener('input', (e) => {
+            if (e.target.tagName.toLowerCase() === 'input' && e.target.type === 'text') {
+                updatePreview();
+            }
+        });
+        
+        if (radios) {
+            radios.forEach(r => {
+                r.addEventListener('change', () => {
+                    if(r.checked) previewText.className = r.parentElement.classList[1];
+                });
+            });
+        }
+    }
 }
 
-function renderExtraKidsFields(product, price, customSection) {
+function renderDynamicOptionsFields(product, price, customSection) {
+    if (!product.dynamic_options || product.dynamic_options.length === 0) return;
+    
+    const container = document.createElement('div');
+    container.style.marginTop = '1rem';
+    container.style.paddingTop = '1rem';
+    container.style.borderTop = '1px solid var(--border-color)';
+    container.className = 'dynamic-options-wrapper';
+
+    const updatePrice = () => {
+        let totalExtraPrice = 0;
+        const selects = container.querySelectorAll('.dynamic-select');
+        selects.forEach(select => {
+            const selectedOption = select.options[select.selectedIndex];
+            if (selectedOption) {
+                const text = selectedOption.text;
+                const dualMatch = text.match(/\(\+?\$?(\d+)\s*M\s*(?:\/|,|-)\s*\+?\$?(\d+)\s*C\)/i);
+                if (dualMatch) {
+                    totalExtraPrice += mode === 'mayoreo' ? parseInt(dualMatch[1]) : parseInt(dualMatch[2]);
+                } else {
+                    const match = text.match(/\(\+\$?(\d+)\)/) || text.match(/\(\$?(\d+)\)/);
+                    if (match) {
+                        totalExtraPrice += parseInt(match[1]);
+                    }
+                }
+            }
+        });
+        // Retrieve base extra price from kids/aritos if they exist (hacky but works)
+        const currentTitle = elements.modalTitle.textContent;
+        // Since other functions might have updated the title, we just append or manage our own.
+        // For simplicity, we just add to the base price. If mixed with kids, it might override.
+        // It is recommended to use either dynamic options or fixed options.
+        elements.modalTitle.textContent = `${getProductLabel(product)} - $${price + totalExtraPrice}`;
+    };
+
+    product.dynamic_options.forEach((opt, idx) => {
+        const fieldDiv = document.createElement('div');
+        fieldDiv.className = 'custom-field';
+        fieldDiv.style.marginBottom = '1rem';
+        
+        let label = `<label for="dyn-opt-${idx}" style="font-weight: 600; color: var(--gold-primary); margin-bottom: 0.5rem; display: block;">${opt.title}</label>`;
+        let inputHtml = '';
+        
+        if (opt.type === 'text') {
+            inputHtml = `<input type="text" id="dyn-opt-${idx}" class="dynamic-input" data-title="${opt.title}" placeholder="Escribe aquí..." ${opt.required ? 'required' : ''} style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.9rem; width: 100%; background: var(--bg-card); color: var(--text-primary);">`;
+        } else if (opt.type === 'select') {
+            const optionsHtml = (opt.choices || []).map(c => {
+                let displayLabel = c;
+                const dualMatch = c.match(/\(\+?\$?(\d+)\s*M\s*(?:\/|,|-)\s*\+?\$?(\d+)\s*C\)/i);
+                if (dualMatch) {
+                    const priceToShow = mode === 'mayoreo' ? dualMatch[1] : dualMatch[2];
+                    displayLabel = c.replace(dualMatch[0], `(+$${priceToShow})`);
+                }
+                return `<option value="${c}">${displayLabel}</option>`;
+            }).join('');
+            inputHtml = `<select id="dyn-opt-${idx}" class="dynamic-select" data-title="${opt.title}" ${opt.required ? 'required' : ''} style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.9rem; width: 100%; cursor: pointer; background: var(--bg-card); color: var(--text-primary);">
+                <option value="">Selecciona una opción...</option>
+                ${optionsHtml}
+            </select>`;
+        }
+        
+        fieldDiv.innerHTML = label + inputHtml;
+        container.appendChild(fieldDiv);
+    });
+
+    customSection.appendChild(container);
+
+    const selects = container.querySelectorAll('.dynamic-select');
+    selects.forEach(select => {
+        select.addEventListener('change', updatePrice);
+    });
+}
+
+function renderExtraKidsFields(product, price, customSection, isPersonalized) {
     const extraPriceMayoreo = product.extra_kid_price_mayoreo || 0;
     const extraPriceCliente = product.extra_kid_price_cliente || 0;
     const extraPrice = mode === 'mayoreo' ? extraPriceMayoreo : extraPriceCliente;
@@ -730,6 +965,16 @@ function renderExtraKidsFields(product, price, customSection) {
     const optionsGirls = Array.from({length: 6}, (_, i) => `<option value="${i}">${i} niña${i!==1?'s':''} ${i>0 ? '(+$' + (i*extraPrice) + ')' : ''}</option>`).join('');
     
     extraDiv.innerHTML = `
+        ${product.requires_base_kid ? `
+        <div style="margin-bottom: 1rem;">
+            <label for="base-kid" style="font-size: 0.8rem; color: #ccc;">Dije incluido:</label>
+            <select id="base-kid" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.9rem; width: 100%; cursor: pointer; background: var(--bg-card); color: var(--text-primary); margin-top: 0.2rem;" required>
+                <option value="">Selecciona uno...</option>
+                <option value="Niño">Niño</option>
+                <option value="Niña">Niña</option>
+            </select>
+        </div>` : ''}
+        ${product.allows_extra_kids ? `
         <div style="font-weight: 600; color: var(--gold-primary); margin-bottom: 0.8rem; font-size: 0.95rem;">
             Agregar Dijes Extra (+$${extraPrice} c/u):
         </div>
@@ -747,31 +992,76 @@ function renderExtraKidsFields(product, price, customSection) {
                 </select>
             </div>
         </div>
+        <div id="extra-kids-inputs-container" style="display: flex; flex-direction: column; gap: 0.8rem;"></div>
+        ` : ''}
     `;
     
     customSection.appendChild(extraDiv);
     
     const boysSelect = extraDiv.querySelector('#extra-boys');
     const girlsSelect = extraDiv.querySelector('#extra-girls');
+    const kidsInputsContainer = extraDiv.querySelector('#extra-kids-inputs-container');
     
     const updateTitlePrice = () => {
-        const extraB = parseInt(boysSelect.value) || 0;
-        const extraG = parseInt(girlsSelect.value) || 0;
+        const extraB = boysSelect ? parseInt(boysSelect.value) || 0 : 0;
+        const extraG = girlsSelect ? parseInt(girlsSelect.value) || 0 : 0;
         let baseExtra = 0;
-        const count = parseInt(document.getElementById('aritos-count')?.value || (product.multi_aritos ? 2 : 1));
+        const baseItems = product.multi_aritos === true ? (parseInt(product.aritos_base_count) || 2) : (parseInt(product.plaquitas_base_count) || 1);
+        const count = parseInt(document.getElementById('aritos-count')?.value || baseItems);
         if (product.multi_aritos === true) {
             const unit = mode === 'mayoreo' ? (product.aritos_price_mayoreo||0) : (product.aritos_price_cliente||0);
-            baseExtra = (count - 2) * unit;
+            baseExtra = (count - baseItems) * unit;
         } else if (product.multi_plaquitas === true) {
             const unit = mode === 'mayoreo' ? (product.plaquitas_price_mayoreo||0) : (product.plaquitas_price_cliente||0);
-            baseExtra = (count - 1) * unit;
+            baseExtra = (count - baseItems) * unit;
         }
         const total = price + baseExtra + ((extraB + extraG) * extraPrice);
         elements.modalTitle.textContent = `${getProductLabel(product)} - $${total}`;
+        
+        if (!kidsInputsContainer) return;
+
+        // Preserve inputs
+        const existingBoys = [];
+        const existingGirls = [];
+        const currentInputs = kidsInputsContainer.querySelectorAll('input');
+        currentInputs.forEach(inp => {
+            if (inp.id.includes('boy')) existingBoys.push(inp.value);
+            if (inp.id.includes('girl')) existingGirls.push(inp.value);
+        });
+        
+        kidsInputsContainer.innerHTML = '';
+        
+        if (isPersonalized) {
+            for (let i = 1; i <= extraB; i++) {
+                const val = existingBoys[i - 1] || '';
+                const fieldDiv = document.createElement('div');
+                fieldDiv.className = 'custom-field';
+                fieldDiv.style.margin = '0';
+                fieldDiv.innerHTML = `
+                    <label for="extra-boy-text-${i}" style="font-size: 0.75rem; color: #ffffff; font-weight: normal;">Texto Grabado para Niño Extra ${i}:</label>
+                    <input type="text" id="extra-boy-text-${i}" placeholder="Nombre o texto para el niño..." value="${val}" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--bg-card); color: var(--text-primary); font-size: 0.85rem; width: 100%;">
+                `;
+                kidsInputsContainer.appendChild(fieldDiv);
+            }
+            
+            for (let i = 1; i <= extraG; i++) {
+                const val = existingGirls[i - 1] || '';
+                const fieldDiv = document.createElement('div');
+                fieldDiv.className = 'custom-field';
+                fieldDiv.style.margin = '0';
+                fieldDiv.innerHTML = `
+                    <label for="extra-girl-text-${i}" style="font-size: 0.75rem; color: #ffffff; font-weight: normal;">Texto Grabado para Niña Extra ${i}:</label>
+                    <input type="text" id="extra-girl-text-${i}" placeholder="Nombre o texto para la niña..." value="${val}" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--bg-card); color: var(--text-primary); font-size: 0.85rem; width: 100%;">
+                `;
+                kidsInputsContainer.appendChild(fieldDiv);
+            }
+        }
     };
     
-    boysSelect.addEventListener('change', updateTitlePrice);
-    girlsSelect.addEventListener('change', updateTitlePrice);
+    if (boysSelect) boysSelect.addEventListener('change', updateTitlePrice);
+    if (girlsSelect) girlsSelect.addEventListener('change', updateTitlePrice);
+    
+    updateTitlePrice(); // Initial render
 }
 
 // Open Lightbox Modal for a product
@@ -834,6 +1124,7 @@ function openModal(product) {
         // Left Arrow
         const prevBtn = document.createElement('button');
         prevBtn.type = 'button';
+        prevBtn.className = 'modal-carousel-nav-btn';
         prevBtn.innerHTML = '&#10094;';
         prevBtn.style.position = 'absolute';
         prevBtn.style.left = '15px';
@@ -857,6 +1148,7 @@ function openModal(product) {
         // Right Arrow
         const nextBtn = document.createElement('button');
         nextBtn.type = 'button';
+        nextBtn.className = 'modal-carousel-nav-btn';
         nextBtn.innerHTML = '&#10095;';
         nextBtn.style.position = 'absolute';
         nextBtn.style.right = '15px';
@@ -898,6 +1190,18 @@ function openModal(product) {
             dotsContainer.appendChild(dot);
             dots.push(dot);
         });
+        
+        // Mobile Swipe Gestures
+        let touchStartX = 0;
+        let touchEndX = 0;
+        carouselContainer.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, {passive: true});
+        carouselContainer.addEventListener('touchend', e => {
+            touchEndX = e.changedTouches[0].screenX;
+            if (touchEndX < touchStartX - 40) showImage(currentImgIdx + 1); // Swipe left
+            if (touchEndX > touchStartX + 40) showImage(currentImgIdx - 1); // Swipe right
+        }, {passive: true});
         
         carouselContainer.appendChild(prevBtn);
         carouselContainer.appendChild(carouselImg);
@@ -991,19 +1295,24 @@ function openModal(product) {
                 window.currentSelectedVariant = variant.name;
                 
                 const imgEl = document.getElementById('dynamic-modal-img');
-                if (imgEl && variant.image) {
-                    imgEl.src = variant.image;
+                if (imgEl) {
+                    if (variant.image) {
+                        imgEl.src = variant.image;
+                    } else if (product.image) {
+                        imgEl.src = product.image;
+                    }
                 }
             });
         });
     }
     
     // Setup Customization inputs dynamically
-    const isPersonalized = product.is_personalized === true || (['Collares', 'Llaveros'].includes(product.category) && product.subcategory === 'Personalizados') ||
+    const isLegacyPersonalized = product.is_personalized === undefined && (['Collares', 'Llaveros'].includes(product.category) && product.subcategory === 'Personalizados');
+    const isPersonalized = product.is_personalized === true || isLegacyPersonalized ||
                            (product.details && product.details.toLowerCase().includes('graba')) ||
-                           product.multi_aritos === true || product.multi_plaquitas === true || product.requires_initial === true;
+                           product.multi_aritos === true || product.multi_plaquitas === true || product.requires_initial === true || product.allows_photo_engraving === true;
     
-    const hasCustomization = isPersonalized || product.allows_extra_kids === true;
+    const hasCustomization = isPersonalized || product.allows_extra_kids === true || product.requires_base_kid === true || (product.dynamic_options && product.dynamic_options.length > 0);
     
     let customSection = modalRight.querySelector('.customization-section');
     if (!customSection) {
@@ -1038,14 +1347,63 @@ function openModal(product) {
             elements.modalTitle.textContent = `${getProductLabel(product)} - $${price}`;
         }
         
-        if (product.allows_extra_kids === true) {
-            renderExtraKidsFields(product, price, customSection);
+        if (product.allows_extra_kids === true || product.requires_base_kid === true) {
+            renderExtraKidsFields(product, price, customSection, isPersonalized);
         }
+
+        renderDynamicOptionsFields(product, price, customSection);
     } else {
         customSection.style.display = 'none';
         elements.modalTitle.textContent = `${getProductLabel(product)} - $${price}`;
     }
     
+    // Mutual exclusivity for photo vs text engraving
+    setTimeout(() => {
+        const photoCheck = customSection.querySelector('#custom-photo-check');
+        if (photoCheck) {
+            const photoContainer = photoCheck.closest('.custom-field');
+            
+            function updateVisibility() {
+                const textFields = Array.from(customSection.querySelectorAll('.custom-field')).filter(el => el !== photoContainer);
+                const aritosContainer = customSection.querySelector('#aritos-inputs-container');
+                const isPhotoChecked = photoCheck.checked;
+                
+                let hasText = false;
+                const allTextInputs = customSection.querySelectorAll('input[type="text"]');
+                allTextInputs.forEach(inp => { if (inp.value.trim() !== '') hasText = true; });
+                
+                if (isPhotoChecked) {
+                    textFields.forEach(el => el.style.display = 'none');
+                    if (aritosContainer) aritosContainer.style.display = 'none';
+                } else if (hasText) {
+                    photoContainer.style.display = 'none';
+                    textFields.forEach(el => el.style.display = '');
+                    if (aritosContainer) aritosContainer.style.display = 'flex';
+                } else {
+                    photoContainer.style.display = '';
+                    textFields.forEach(el => el.style.display = '');
+                    if (aritosContainer) aritosContainer.style.display = 'flex';
+                }
+            }
+            
+            photoCheck.addEventListener('change', updateVisibility);
+            customSection.addEventListener('input', (e) => {
+                if (e.target.type === 'text') {
+                    updateVisibility();
+                }
+            });
+            
+            // Also listen to select changes (like "Cantidad de Aros") to ensure UI updates if fields are re-rendered
+            customSection.addEventListener('change', (e) => {
+                if (e.target.tagName.toLowerCase() === 'select') {
+                    setTimeout(updateVisibility, 50); // wait for re-render
+                }
+            });
+            
+            updateVisibility();
+        }
+    }, 50);
+
     // Setup Add to Cart button inside modal
     elements.modalAddToCart.onclick = () => {
         let customText = '';
@@ -1059,12 +1417,24 @@ function openModal(product) {
             const girlsSelect = customSection.querySelector('#extra-girls');
             extraBoys = boysSelect ? parseInt(boysSelect.value) || 0 : 0;
             extraGirls = girlsSelect ? parseInt(girlsSelect.value) || 0 : 0;
+            
+            if (product.requires_base_kid === true) {
+                const baseKidSelect = customSection.querySelector('#base-kid');
+                if (baseKidSelect) {
+                    if (!baseKidSelect.value) {
+                        alert("Por favor selecciona el dije incluido (Niño o Niña) antes de agregar al pedido.");
+                        return; // Prevent add to cart
+                    }
+                    customText = `[Incluye: ${baseKidSelect.value}]`;
+                }
+            }
         }
         
         if (isPersonalized && customSection) {
             if (product.requires_initial === true) {
                 const initSelect = customSection.querySelector('#custom-initial');
-                customText = initSelect ? `Inicial elegida: ${initSelect.value}` : '';
+                const t = initSelect ? `Inicial elegida: ${initSelect.value}` : '';
+                customText = customText ? `${customText} | ${t}` : t;
                 customFont = 'N/A';
             } else if (product.multi_aritos === true || product.multi_plaquitas === true) {
                 const fontGroupEl = customSection.querySelector('#custom-font');
@@ -1080,22 +1450,87 @@ function openModal(product) {
                     const val = inp ? inp.value.trim() : '';
                     texts.push(val || '(Sin grabar)');
                 }
-                customText = texts.join(' | ');
+                const t = texts.join(' | ');
+                customText = customText ? `${customText} | ${t}` : t;
             } else {
                 const fontGroupEl = customSection.querySelector('#custom-font');
                 const checkedRadio = fontGroupEl ? fontGroupEl.querySelector('input[type=radio]:checked') : null;
                 customFont = checkedRadio ? checkedRadio.value : '1. Básica';
                 
                 const textInp = customSection.querySelector('#custom-text');
-                customText = textInp ? textInp.value.trim() : '';
+                const t = textInp ? textInp.value.trim() : '';
+                customText = customText ? `${customText} | ${t}` : t;
+            }
+        }
+        
+        if (product.allows_photo_engraving === true && customSection) {
+            const photoCheck = customSection.querySelector('#custom-photo-check');
+            if (photoCheck && photoCheck.checked) {
+                customText = `[REQUIERE GRABAR FOTO]` + (customText ? ` | ${customText}` : '');
+            }
+        }
+        
+        if (product.allows_extra_kids === true && customSection && (extraBoys > 0 || extraGirls > 0)) {
+            const kidTexts = [];
+            for (let i = 1; i <= extraBoys; i++) {
+                const inp = customSection.querySelector(`#extra-boy-text-${i}`);
+                if (inp) kidTexts.push(`Niño Extra ${i}: ${inp.value.trim() || '(Sin grabar)'}`);
+            }
+            for (let i = 1; i <= extraGirls; i++) {
+                const inp = customSection.querySelector(`#extra-girl-text-${i}`);
+                if (inp) kidTexts.push(`Niña Extra ${i}: ${inp.value.trim() || '(Sin grabar)'}`);
+            }
+            if (kidTexts.length > 0) {
+                customText = customText ? customText + ' | ' + kidTexts.join(' | ') : kidTexts.join(' | ');
             }
         }
         
         if (window.currentSelectedVariant) {
             customText = `[Color: ${window.currentSelectedVariant}] ` + customText;
         }
+
+        // --- Dynamic Options Extraction ---
+        let dynamicExtraPrice = 0;
+        if (product.dynamic_options && product.dynamic_options.length > 0 && customSection) {
+            const wrapper = customSection.querySelector('.dynamic-options-wrapper');
+            if (wrapper) {
+                const dynTexts = [];
+                // Check all inputs
+                const inputs = wrapper.querySelectorAll('.dynamic-input, .dynamic-select');
+                for (let i = 0; i < inputs.length; i++) {
+                    const inp = inputs[i];
+                    if (inp.required && !inp.value.trim()) {
+                        alert(`Por favor completa el campo: ${inp.getAttribute('data-title')}`);
+                        return; // Prevent add to cart
+                    }
+                    if (inp.value.trim()) {
+                        dynTexts.push(`${inp.getAttribute('data-title')}: ${inp.value.trim()}`);
+                        
+                        // Check if it's a select and has extra price
+                        if (inp.tagName.toLowerCase() === 'select') {
+                            const selectedOption = inp.options[inp.selectedIndex];
+                            if (selectedOption) {
+                                const dualMatch = selectedOption.text.match(/\(\+?\$?(\d+)\s*M\s*(?:\/|,|-)\s*\+?\$?(\d+)\s*C\)/i);
+                                if (dualMatch) {
+                                    dynamicExtraPrice += mode === 'mayoreo' ? parseInt(dualMatch[1]) : parseInt(dualMatch[2]);
+                                } else {
+                                    const match = selectedOption.text.match(/\(\+\$?(\d+)\)/) || selectedOption.text.match(/\(\$?(\d+)\)/);
+                                    if (match) {
+                                        dynamicExtraPrice += parseInt(match[1]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (dynTexts.length > 0) {
+                    const t = dynTexts.join(' | ');
+                    customText = customText ? customText + ' | ' + t : t;
+                }
+            }
+        }
         
-        addToCart(product.code, customText, customFont, aritosCount, extraBoys, extraGirls);
+        addToCart(product.code, customText, customFont, aritosCount, extraBoys, extraGirls, dynamicExtraPrice);
         closeModal();
     };
     
@@ -1110,9 +1545,9 @@ function closeModal() {
 }
 
 // Shopping Cart Management
-function addToCart(code, customText = '', customFont = '', aritosCount = 2, extraBoys = 0, extraGirls = 0) {
+function addToCart(code, customText = '', customFont = '', aritosCount = 2, extraBoys = 0, extraGirls = 0, dynamicExtraPrice = 0) {
     const cleanText = customText.trim();
-    const key = cleanText ? `${code}__${cleanText}__${customFont}__${aritosCount}__${extraBoys}__${extraGirls}` : `${code}__${extraBoys}__${extraGirls}`;
+    const key = cleanText ? `${code}__${cleanText}__${customFont}__${aritosCount}__${extraBoys}__${extraGirls}__${dynamicExtraPrice}` : `${code}__${extraBoys}__${extraGirls}__${dynamicExtraPrice}`;
     
     if (cart[key]) {
         cart[key].qty++;
@@ -1124,7 +1559,8 @@ function addToCart(code, customText = '', customFont = '', aritosCount = 2, extr
             customFont: customFont,
             aritosCount: aritosCount,
             extraBoys: extraBoys,
-            extraGirls: extraGirls
+            extraGirls: extraGirls,
+            dynamicExtraPrice: dynamicExtraPrice
         };
     }
     updateCartUI();
@@ -1171,13 +1607,23 @@ function updateCartUI() {
             
             const qty = item.qty;
             const basePrice = mode === 'mayoreo' ? product.price_mayoreo : product.price_cliente;
+            const baseItems = product.multi_aritos === true ? (parseInt(product.aritos_base_count) || 2) : (parseInt(product.plaquitas_base_count) || 1);
             let extraPrice = 0;
             if (product.multi_aritos === true) {
                 const unit = mode === 'mayoreo' ? (product.aritos_price_mayoreo||0) : (product.aritos_price_cliente||0);
-                extraPrice = (item.aritosCount - 2) * unit;
+                extraPrice += (item.aritosCount - baseItems) * unit;
             } else if (product.multi_plaquitas === true) {
                 const unit = mode === 'mayoreo' ? (product.plaquitas_price_mayoreo||0) : (product.plaquitas_price_cliente||0);
-                extraPrice = (item.aritosCount - 1) * unit;
+                extraPrice += (item.aritosCount - baseItems) * unit;
+            }
+            
+            if (product.allows_extra_kids === true) {
+                const kidUnit = mode === 'mayoreo' ? (product.extra_kid_price_mayoreo||0) : (product.extra_kid_price_cliente||0);
+                extraPrice += ((item.extraBoys || 0) + (item.extraGirls || 0)) * kidUnit;
+            }
+            
+            if (item.dynamicExtraPrice) {
+                extraPrice += item.dynamicExtraPrice;
             }
             const price = basePrice + extraPrice;
             const itemTotal = price * qty;
@@ -1204,7 +1650,7 @@ function updateCartUI() {
                         </div>
                     `;
                 } else {
-                    if (item.customFont === 'N/A') {
+                    if (!item.customFont || item.customFont === 'N/A') {
                         customDetailsHTML = `
                             <div class="cart-item-custom-info">
                                 <span>🏷️ ${item.customText}</span>
@@ -1314,8 +1760,46 @@ function updateCartUI() {
         }
     }
     
-    // Check Wholesale Rules
+    // Check Wholesale Rules and Gamified Progress Bar
     if (mode === 'mayoreo') {
+        let progressBarRow = document.getElementById('cart-progress-row');
+        if (!progressBarRow) {
+            progressBarRow = document.createElement('div');
+            progressBarRow.id = 'cart-progress-row';
+            progressBarRow.style.cssText = 'margin: 1rem 0; text-align: center;';
+            const cartFooter = document.querySelector('.cart-footer');
+            if (cartFooter) {
+                cartFooter.insertBefore(progressBarRow, elements.minWarning);
+            }
+        }
+        
+        if (progressBarRow) {
+            const freeShippingThreshold = 3000;
+            const progress = Math.min(100, (totalPrice / freeShippingThreshold) * 100);
+            
+            let progressMsg = '';
+            let progressColor = 'var(--gold-primary)';
+            
+            if (totalPrice >= 3000) {
+                progressMsg = `🎉 ¡Felicidades! Tienes <strong>Envío Gratis</strong>.`;
+                progressColor = '#4CAF50';
+            } else if (totalPrice >= 2000) {
+                progressMsg = `¡Envío de $119 MXN! Agrega <strong>$${3000 - totalPrice}</strong> para Envío Gratis.`;
+            } else if (totalPrice > 0) {
+                progressMsg = `Agrega <strong>$${3000 - totalPrice}</strong> para Envío Gratis.`;
+            } else {
+                progressMsg = `Agrega $3000 para Envío Gratis.`;
+            }
+            
+            progressBarRow.innerHTML = `
+                <div style="font-size: 0.85rem; color: #ddd; margin-bottom: 0.4rem;">${progressMsg}</div>
+                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                    <div style="width: ${progress}%; height: 100%; background: ${progressColor}; transition: width 0.3s ease;"></div>
+                </div>
+            `;
+            progressBarRow.style.display = totalPrice > 0 ? 'block' : 'none';
+        }
+        
         if (totalPrice < CONFIG.minPurchaseMayoreo) {
             elements.minWarning.style.display = 'block';
             elements.minWarning.textContent = `Mínimo de compra para mayoreo: $${CONFIG.minPurchaseMayoreo} MXN (Faltan $${CONFIG.minPurchaseMayoreo - totalPrice})`;
@@ -1390,17 +1874,21 @@ function handleCheckout() {
         
         const qty = item.qty;
         const basePrice = mode === 'mayoreo' ? product.price_mayoreo : product.price_cliente;
-        let extraAritosPrice = 0;
+        const baseItems = product.multi_aritos === true ? (parseInt(product.aritos_base_count) || 2) : (parseInt(product.plaquitas_base_count) || 1);
+        const aritosCount = parseInt(item.aritosCount) || baseItems;
+        let aritosPrice = 0;
+        
         if (product.multi_aritos === true) {
-            const unit = mode === 'mayoreo' ? (product.aritos_price_mayoreo||0) : (product.aritos_price_cliente||0);
-            extraAritosPrice = (item.aritosCount - 2) * unit;
+            const unit = mode === 'mayoreo' ? (product.aritos_price_mayoreo || 0) : (product.aritos_price_cliente || 0);
+            aritosPrice = (aritosCount - baseItems) * unit;
         } else if (product.multi_plaquitas === true) {
-            const unit = mode === 'mayoreo' ? (product.plaquitas_price_mayoreo||0) : (product.plaquitas_price_cliente||0);
-            extraAritosPrice = (item.aritosCount - 1) * unit;
+            const unit = mode === 'mayoreo' ? (product.plaquitas_price_mayoreo || 0) : (product.plaquitas_price_cliente || 0);
+            aritosPrice = (aritosCount - baseItems) * unit;
         }
         const extraKidUnit = mode === 'mayoreo' ? (product.extra_kid_price_mayoreo || 0) : (product.extra_kid_price_cliente || 0);
-        const extraKidsPrice = product.allows_extra_kids === true ? (item.extraBoys + item.extraGirls) * extraKidUnit : 0;
-        const price = basePrice + extraAritosPrice + extraKidsPrice;
+        const extraKidsPrice = product.allows_extra_kids === true ? ((item.extraBoys||0) + (item.extraGirls||0)) * extraKidUnit : 0;
+        const dynExtraPrice = item.dynamicExtraPrice || 0;
+        const price = basePrice + aritosPrice + extraKidsPrice + dynExtraPrice;
         const subtotal = price * qty;
         total += subtotal;
         
@@ -1410,7 +1898,7 @@ function handleCheckout() {
                 const itemType = product.multi_aritos ? 'Aros' : 'Plaquitas';
                 customInfo += ` [💍 ${itemType}: ${item.aritosCount} | Grabados: '${item.customText}' | Letra: ${item.customFont}]`;
             } else {
-                if (item.customFont === 'N/A') {
+                if (!item.customFont || item.customFont === 'N/A') {
                     customInfo += ` [${item.customText}]`;
                 } else {
                     customInfo += ` [Grabado: '${item.customText}' / Letra: ${item.customFont}]`;
@@ -1425,7 +1913,16 @@ function handleCheckout() {
             customInfo += ` [Extra: ${kidsArr.join(', ')}]`;
         }
         
-        message += `• *${qty}x* ${product.code}${customInfo} (${product.material}) - $${price} c/u (Sub: $${subtotal})\n`;
+        let singularCatStr = product.category ? product.category : '';
+        const catMap = { 'collares': 'Collar', 'aretes': 'Arete', 'piercings': 'Piercing', 'llaveros': 'Llavero', 'pulseras': 'Pulsera', 'anillos': 'Anillo', 'relojes': 'Reloj' };
+        if (singularCatStr && catMap[singularCatStr.toLowerCase()]) {
+            singularCatStr = catMap[singularCatStr.toLowerCase()];
+        } else if (singularCatStr && singularCatStr.toLowerCase().endsWith('s')) {
+            singularCatStr = singularCatStr.slice(0, -1);
+        }
+        
+        const categoryText = singularCatStr ? `(${singularCatStr})` : '';
+        message += `• *${qty}x* ${product.code}${customInfo} ${categoryText} - $${price} c/u (Sub: $${subtotal})\n`;
     });
     
     let shipping = 0;
@@ -1443,7 +1940,7 @@ function handleCheckout() {
     }
     
     const encodedMessage = encodeURIComponent(message);
-    const phone = CONFIG.whatsappPhone;
+    const phone = mode === 'mayoreo' ? CONFIG.whatsappPhoneMayoreo : CONFIG.whatsappPhoneClientes;
     
     let waUrl = "";
     if (phone) {

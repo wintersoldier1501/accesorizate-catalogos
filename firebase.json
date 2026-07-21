@@ -1,16 +1,34 @@
 {
-  "hosting": {
-    "public": ".",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      ".git/**",
-      "**/node_modules/**",
-      "**/*.pptx",
-      "*.py",
-      "scratch/**",
-      "package.json",
-      "package-lock.json"
-    ]
-  }
+  "hosting": [
+    {
+      "target": "accesorizate",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        ".git/**",
+        "**/node_modules/**",
+        "**/*.pptx",
+        "*.py",
+        "scratch/**",
+        "package.json",
+        "package-lock.json"
+      ]
+    },
+    {
+      "target": "accesorios",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        ".git/**",
+        "**/node_modules/**",
+        "**/*.pptx",
+        "*.py",
+        "scratch/**",
+        "package.json",
+        "package-lock.json"
+      ]
+    }
+  ]
 }
