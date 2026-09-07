@@ -40,7 +40,9 @@ const elements = {
     modalTitle: document.getElementById('modal-title'),
     modalDesc: document.getElementById('modal-desc'),
     modalClose: document.getElementById('modal-close'),
-    modalAddToCart: document.getElementById('modal-add-to-cart')
+    productsGrid: document.getElementById('products-grid'),
+    modalAddToCart: document.getElementById('modal-add-to-cart'),
+    modalShareBtn: document.getElementById('modal-share-btn')
 };
 
 // Initialize App
@@ -302,7 +304,7 @@ function applyFilters() {
             if (timeB > 0) return 1;
             return getCodeNumber(b.code) - getCodeNumber(a.code);
         });
-        window.homepageNewest = sortedByNewness.slice(0, 20);
+        window.homepageNewest = sortedByNewness.slice(0, 40);
         
         // (Seasonal extraction logic moved to dedicated view)
         
@@ -349,7 +351,7 @@ function applyFilters() {
                                     (activeCategory.toLowerCase() === 'personalizados' ? 
                                         isCategoryPersonalized : 
                                         (activeCategory.toLowerCase() === 'hombre' ? 
-                                            (p.is_mens === true || p.subcategory === 'Accesorios Hombre' || p.subcategory === 'Hombre') : 
+                                            (p.is_mens === true || (p.is_mens !== false && (p.subcategory === 'Accesorios Hombre' || p.subcategory === 'Hombre'))) : 
                                             p.category.toLowerCase() === activeCategory.toLowerCase()));
                                     
             // Material match
@@ -410,6 +412,20 @@ function applyFilters() {
     
     // Render first page
     renderNextPage();
+    
+    // Handle deep linking on first load
+    if (!window.deepLinkHandled) {
+        window.deepLinkHandled = true;
+        const urlParams = new URLSearchParams(window.location.search);
+        const productId = urlParams.get('producto');
+        if (productId) {
+            const prod = products.find(p => p.code === productId);
+            if (prod) {
+                // Short delay to ensure rendering completes
+                setTimeout(() => openModal(prod), 300);
+            }
+        }
+    }
 }
 
 // Render the next page of products (for lazy loading)
@@ -533,6 +549,10 @@ function renderNextPage() {
 
 // Helper to get singular uppercase label for a product (e.g. COLLAR - AX2482-G)
 function getProductLabel(product) {
+    if (product.display_name) {
+        return `${product.display_name.toUpperCase()} - ${product.code}`;
+    }
+
     const cat = (product.category || '').toLowerCase();
     
     // For kid's accessories, it's not necessary to prepend a label, just show the code
@@ -575,11 +595,12 @@ function createProductCard(product) {
     
     const price = mode === 'mayoreo' ? product.price_mayoreo : product.price_cliente;
     const imageSrc = product.has_image ? product.image : 'public/images/placeholder.webp';
+    const displayMaterial = product.material === 'Aleación de Metales' ? 'Aleaciones' : product.material;
     
     card.innerHTML = `
         <div class="image-container">
-            <img class="product-image" src="${imageSrc}" alt="${product.code}" loading="lazy">
-            <span class="material-tag">${product.material}</span>
+            <img class="product-image" src="${imageSrc}" alt="${product.code}" loading="lazy" style="object-position: center ${product.image_offset_y !== undefined ? product.image_offset_y : 50}%;">
+            <span class="material-tag">${displayMaterial}</span>
         </div>
         <div class="product-info">
             <div class="product-header">
@@ -1195,9 +1216,14 @@ function openModal(product) {
         let touchStartX = 0;
         let touchEndX = 0;
         carouselContainer.addEventListener('touchstart', e => {
+            if (e.touches.length > 1) {
+                touchStartX = null;
+                return;
+            }
             touchStartX = e.changedTouches[0].screenX;
         }, {passive: true});
         carouselContainer.addEventListener('touchend', e => {
+            if (touchStartX === null) return;
             touchEndX = e.changedTouches[0].screenX;
             if (touchEndX < touchStartX - 40) showImage(currentImgIdx + 1); // Swipe left
             if (touchEndX > touchStartX + 40) showImage(currentImgIdx - 1); // Swipe right
@@ -1216,7 +1242,8 @@ function openModal(product) {
     }
     
     elements.modalTitle.textContent = `${getProductLabel(product)} - $${price}`;
-    elements.modalDesc.textContent = product.details && product.details.trim() ? `${product.material} | ${product.details}` : product.material;
+    const displayMaterial = product.material === 'Aleación de Metales' ? 'Aleaciones' : product.material;
+    elements.modalDesc.textContent = product.details && product.details.trim() ? `${displayMaterial} | ${product.details}` : displayMaterial;
 
     const modalRight = elements.modalOverlay.querySelector('.modal-right');
     
@@ -1318,7 +1345,7 @@ function openModal(product) {
     if (!customSection) {
         customSection = document.createElement('div');
         customSection.className = 'customization-section';
-        modalRight.insertBefore(customSection, elements.modalAddToCart);
+        modalRight.insertBefore(customSection, elements.modalAddToCart.parentElement);
     }
     
     if (product.requires_initial) {
@@ -1403,6 +1430,20 @@ function openModal(product) {
             updateVisibility();
         }
     }, 50);
+
+    // Setup Share button
+    if (elements.modalShareBtn) {
+        elements.modalShareBtn.onclick = () => {
+            const shareUrl = window.location.origin + window.location.pathname + '?producto=' + product.code;
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                const originalHtml = elements.modalShareBtn.innerHTML;
+                elements.modalShareBtn.innerHTML = '<span style="font-size: 12px; font-weight: bold;">¡Copiado!</span>';
+                setTimeout(() => {
+                    elements.modalShareBtn.innerHTML = originalHtml;
+                }, 2000);
+            }).catch(err => console.error("Error al copiar:", err));
+        };
+    }
 
     // Setup Add to Cart button inside modal
     elements.modalAddToCart.onclick = () => {
@@ -1698,9 +1739,9 @@ function updateCartUI() {
     // Check Shipping Rules
     let shipping = 0;
     if (mode === 'mayoreo') {
-        if (totalPrice > 0 && totalPrice < 2000) {
+        if (totalPrice > 0 && totalPrice < 2200) {
             shipping = 238;
-        } else if (totalPrice >= 2000 && totalPrice < 3000) {
+        } else if (totalPrice >= 2200 && totalPrice < 3000) {
             shipping = 119;
         } else {
             shipping = 0; // Gratis
@@ -1713,51 +1754,59 @@ function updateCartUI() {
     let finalTotalVal = document.getElementById('cart-final-total-val');
     
     // Dynamically inject if missing (to bypass cached HTML)
-    if (!shippingRow) {
-        const cartFooter = document.querySelector('.cart-footer');
-        if (cartFooter) {
-            const minWarning = document.getElementById('min-warning');
-            
-            shippingRow = document.createElement('div');
-            shippingRow.id = 'cart-shipping-row';
-            shippingRow.className = 'cart-total-row';
-            shippingRow.style.cssText = 'display: none; font-size: 0.95rem; margin-top: 0.5rem; color: #555;';
-            shippingRow.innerHTML = '<span class="cart-total-label">Envío:</span><span class="cart-total-val" id="cart-shipping-val">$0</span>';
-            cartFooter.insertBefore(shippingRow, minWarning);
-            
-            finalTotalRow = document.createElement('div');
-            finalTotalRow.id = 'cart-final-total-row';
-            finalTotalRow.className = 'cart-total-row';
-            finalTotalRow.style.cssText = 'display: none; margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 0.5rem;';
-            finalTotalRow.innerHTML = '<span class="cart-total-label">Total:</span><span class="cart-total-val" id="cart-final-total-val">$0</span>';
-            cartFooter.insertBefore(finalTotalRow, minWarning);
-            
-            shippingVal = document.getElementById('cart-shipping-val');
-            finalTotalVal = document.getElementById('cart-final-total-val');
-            
-            // Rename the original total to Subtotal just in case
-            const originalTotalLabel = document.querySelector('.cart-total-row .cart-total-label');
-            if (originalTotalLabel) originalTotalLabel.textContent = 'Subtotal:';
-        }
-    }
-    
-    if (shippingRow && finalTotalRow) {
-        if (totalPrice > 0) {
-            shippingRow.style.display = 'flex';
-            finalTotalRow.style.display = 'flex';
-            shippingVal.textContent = shipping === 0 ? '¡Gratis!' : `$${shipping}`;
-            finalTotalVal.textContent = `$${totalPrice + shipping}`;
-            if (shipping === 0) {
-                shippingVal.style.color = '#4CAF50';
-                shippingVal.style.fontWeight = 'bold';
-            } else {
-                shippingVal.style.color = '';
-                shippingVal.style.fontWeight = '';
+    if (mode === 'mayoreo') {
+        if (!shippingRow) {
+            const cartFooter = document.querySelector('.cart-footer');
+            if (cartFooter) {
+                const minWarning = document.getElementById('min-warning');
+                
+                shippingRow = document.createElement('div');
+                shippingRow.id = 'cart-shipping-row';
+                shippingRow.className = 'cart-total-row';
+                shippingRow.style.cssText = 'display: none; font-size: 0.95rem; margin-top: 0.5rem; color: #555;';
+                shippingRow.innerHTML = '<span class="cart-total-label">Envío:</span><span class="cart-total-val" id="cart-shipping-val">$0</span>';
+                cartFooter.insertBefore(shippingRow, minWarning);
+                
+                finalTotalRow = document.createElement('div');
+                finalTotalRow.id = 'cart-final-total-row';
+                finalTotalRow.className = 'cart-total-row';
+                finalTotalRow.style.cssText = 'display: none; margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 0.5rem;';
+                finalTotalRow.innerHTML = '<span class="cart-total-label">Total:</span><span class="cart-total-val" id="cart-final-total-val">$0</span>';
+                cartFooter.insertBefore(finalTotalRow, minWarning);
+                
+                shippingVal = document.getElementById('cart-shipping-val');
+                finalTotalVal = document.getElementById('cart-final-total-val');
+                
+                // Rename the original total to Subtotal just in case
+                const originalTotalLabel = document.querySelector('.cart-total-row .cart-total-label');
+                if (originalTotalLabel) originalTotalLabel.textContent = 'Subtotal:';
             }
-        } else {
-            shippingRow.style.display = 'none';
-            finalTotalRow.style.display = 'none';
         }
+        
+        if (shippingRow && finalTotalRow) {
+            if (totalPrice > 0) {
+                shippingRow.style.display = 'flex';
+                finalTotalRow.style.display = 'flex';
+                shippingVal.textContent = shipping === 0 ? '¡Gratis!' : `$${shipping}`;
+                finalTotalVal.textContent = `$${totalPrice + shipping}`;
+                if (shipping === 0) {
+                    shippingVal.style.color = '#4CAF50';
+                    shippingVal.style.fontWeight = 'bold';
+                } else {
+                    shippingVal.style.color = '';
+                    shippingVal.style.fontWeight = '';
+                }
+            } else {
+                shippingRow.style.display = 'none';
+                finalTotalRow.style.display = 'none';
+            }
+        }
+    } else {
+        // If it's clientes, ensure the label is "Total" and hide the shipping/final rows if they somehow exist
+        const originalTotalLabel = document.querySelector('.cart-total-row .cart-total-label');
+        if (originalTotalLabel) originalTotalLabel.textContent = 'Total:';
+        if (shippingRow) shippingRow.style.display = 'none';
+        if (finalTotalRow) finalTotalRow.style.display = 'none';
     }
     
     // Check Wholesale Rules and Gamified Progress Bar
@@ -1783,7 +1832,7 @@ function updateCartUI() {
             if (totalPrice >= 3000) {
                 progressMsg = `🎉 ¡Felicidades! Tienes <strong>Envío Gratis</strong>.`;
                 progressColor = '#4CAF50';
-            } else if (totalPrice >= 2000) {
+            } else if (totalPrice >= 2200) {
                 progressMsg = `¡Envío de $119 MXN! Agrega <strong>$${3000 - totalPrice}</strong> para Envío Gratis.`;
             } else if (totalPrice > 0) {
                 progressMsg = `Agrega <strong>$${3000 - totalPrice}</strong> para Envío Gratis.`;
@@ -1927,8 +1976,8 @@ function handleCheckout() {
     
     let shipping = 0;
     if (mode === 'mayoreo') {
-        if (total > 0 && total < 2000) shipping = 238;
-        else if (total >= 2000 && total < 3000) shipping = 119;
+        if (total > 0 && total < 2200) shipping = 238;
+        else if (total >= 2200 && total < 3000) shipping = 119;
         
         message += `\n*Subtotal estimado: $${total} MXN*\n`;
         message += `*Envío Estándar: ${shipping === 0 ? '¡GRATIS!' : '$' + shipping + ' MXN'}*\n`;
