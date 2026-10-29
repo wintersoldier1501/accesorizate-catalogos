@@ -1368,3 +1368,186 @@ footer.main-footer {
     }
 }
 
+/* Subtle Inline Price Sort Control */
+.catalog-sort-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: -0.75rem;
+    margin-bottom: -1rem;
+    z-index: 2;
+}
+
+.catalog-sort-bar.after-header {
+    margin-top: -3.2rem;
+    margin-bottom: -1rem;
+}
+
+.catalog-sort-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.7rem;
+    background-color: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(53, 54, 58, 0.15);
+    border-radius: 20px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    transition: var(--transition-smooth);
+}
+
+.catalog-sort-pill:hover,
+.catalog-sort-pill.active {
+    border-color: var(--gold-primary);
+    color: var(--text-primary);
+    background-color: #ffffff;
+}
+
+.catalog-sort-pill.active .catalog-sort-icon {
+    color: var(--gold-primary);
+}
+
+.catalog-sort-icon {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+}
+
+.catalog-sort-select {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    padding-right: 0.85rem;
+    outline: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='9' viewBox='0 0 16 16' fill='%237e7e80'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0 center;
+}
+
+@media (max-width: 768px) {
+    .catalog-sort-bar {
+        margin-top: -0.25rem;
+        margin-bottom: -0.25rem;
+    }
+    .catalog-sort-bar.after-header {
+        margin-top: -1.8rem;
+        margin-bottom: -0.25rem;
+    }
+    .catalog-sort-pill {
+        padding: 0.2rem 0.6rem;
+        font-size: 0.7rem;
+    }
+    .catalog-sort-select {
+        font-size: 0.7rem;
+    }
+}
+
+@media print {
+    .catalog-sort-bar,
+    .mobile-floating-cart {
+        display: none !important;
+    }
+}
+
+/* Mobile Floating Cart Pill (Bottom-Right) */
+.mobile-floating-cart {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .mobile-floating-cart {
+        position: fixed;
+        bottom: 1.25rem;
+        right: 1.25rem;
+        z-index: 450;
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.65rem 1.05rem;
+        background: rgba(44, 44, 46, 0.95);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        color: #ffffff;
+        border: 1.5px solid var(--gold-primary);
+        border-radius: 999px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(212, 152, 165, 0.15);
+        font-family: 'Montserrat', sans-serif;
+        cursor: pointer;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(18px) scale(0.92);
+        transition: opacity 0.28s cubic-bezier(0.25, 0.8, 0.25, 1),
+                    transform 0.28s cubic-bezier(0.25, 0.8, 0.25, 1),
+                    box-shadow 0.2s ease;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .mobile-floating-cart.visible {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+    }
+
+    .mobile-floating-cart:active {
+        transform: scale(0.96);
+    }
+
+    .mobile-floating-cart.pulse {
+        animation: mfcPulse 0.42s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .mobile-floating-cart .mfc-icon {
+        color: var(--gold-primary);
+        flex-shrink: 0;
+    }
+
+    .mobile-floating-cart .mfc-badge {
+        background-color: var(--gold-primary);
+        color: #ffffff;
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 0.1rem 0.48rem;
+        border-radius: 999px;
+        line-height: 1.25;
+        min-width: 1.35rem;
+        text-align: center;
+    }
+
+    .mobile-floating-cart .mfc-divider {
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 0.8rem;
+        line-height: 1;
+    }
+
+    .mobile-floating-cart .mfc-total {
+        color: #ffffff;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+    }
+}
+
+@keyframes mfcPulse {
+    0% {
+        transform: scale(1);
+    }
+    40% {
+        transform: scale(1.09);
+        box-shadow: 0 10px 28px rgba(212, 152, 165, 0.45);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+

@@ -16,6 +16,7 @@ let filteredProducts = [];
 let cart = {};
 let activeCategory = 'all';
 let activeMaterial = 'all';
+let activePriceSort = 'default';
 let searchQuery = '';
 let renderedCount = 0;
 let mode = 'clientes'; // 'clientes' or 'mayoreo'
@@ -75,24 +76,45 @@ document.addEventListener('DOMContentLoaded', () => {
 async function fetchProducts() {
     // 1. Fetch from Firebase Firestore if available
     if (window.db) {
-        // Fetch Banner Settings first
+        let cloudLastUpdated = 0;
         try {
-            const bannerDoc = await window.db.collection("settings").doc("banner").get();
-            if (bannerDoc.exists) {
-                window.bannerSettings = bannerDoc.data();
+            const [bannerRes, seasonalRes, metaRes] = await Promise.allSettled([
+                window.db.collection("settings").doc("banner").get(),
+                window.db.collection("settings").doc("seasonal").get(),
+                window.db.collection("settings").doc("catalog_meta").get()
+            ]);
+
+            if (bannerRes.status === 'fulfilled' && bannerRes.value.exists) {
+                window.bannerSettings = bannerRes.value.data();
+            }
+            if (seasonalRes.status === 'fulfilled' && seasonalRes.value.exists) {
+                window.seasonalSettings = seasonalRes.value.data();
+            }
+            if (metaRes.status === 'fulfilled' && metaRes.value.exists && metaRes.value.data().lastUpdated) {
+                cloudLastUpdated = Number(metaRes.value.data().lastUpdated) || 0;
             }
         } catch (error) {
-            console.error("Error fetching banner settings:", error);
+            console.error("Error fetching settings:", error);
         }
 
-        // Fetch Seasonal Settings
-        try {
-            const seasonalDoc = await window.db.collection("settings").doc("seasonal").get();
-            if (seasonalDoc.exists) {
-                window.seasonalSettings = seasonalDoc.data();
+        // Check smart versioned local cache (saves ~1,800 reads when no admin changes occurred)
+        if (cloudLastUpdated > 0) {
+            try {
+                const cachedTs = Number(localStorage.getItem('acc_catalog_ts_v1')) || 0;
+                const cachedStr = localStorage.getItem('acc_catalog_cache_v1');
+                if (cachedTs === cloudLastUpdated && cachedStr) {
+                    const cachedProducts = JSON.parse(cachedStr);
+                    if (Array.isArray(cachedProducts) && cachedProducts.length > 0) {
+                        products = cachedProducts;
+                        console.log(`Loaded ${products.length} products from smart cache (1 read used instead of ${products.length}).`);
+                        initDynamicCategories();
+                        applyFilters();
+                        return;
+                    }
+                }
+            } catch (cacheErr) {
+                console.warn("Smart cache read skipped:", cacheErr);
             }
-        } catch (error) {
-            console.error("Error fetching seasonal settings:", error);
         }
 
         console.log("Fetching products database from Firebase Firestore...");
@@ -110,6 +132,17 @@ async function fetchProducts() {
             if (fbProducts.length > 0) {
                 products = fbProducts;
                 console.log(`Loaded ${products.length} products from Firebase.`);
+                try {
+                    const tsToSave = cloudLastUpdated || Date.now();
+                    if (!cloudLastUpdated) {
+                        window.db.collection("settings").doc("catalog_meta").set({ lastUpdated: tsToSave }, { merge: true }).catch(() => {});
+                    }
+                    localStorage.setItem('acc_catalog_cache_v1', JSON.stringify(fbProducts));
+                    localStorage.setItem('acc_catalog_ts_v1', String(tsToSave));
+                } catch (saveErr) {
+                    console.warn("Could not save smart cache:", saveErr);
+                }
+                initDynamicCategories();
                 applyFilters();
                 return;
             } else {
@@ -119,6 +152,21 @@ async function fetchProducts() {
             console.error("Firebase fetch failed, falling back to local files:", error);
         }
     }
+
+    // 1.5 Fallback to most recent smart cache in localStorage if Firebase is offline/quota reached
+    try {
+        const cachedStr = localStorage.getItem('acc_catalog_cache_v1');
+        if (cachedStr) {
+            const cachedProducts = JSON.parse(cachedStr);
+            if (Array.isArray(cachedProducts) && cachedProducts.length > 0) {
+                products = cachedProducts;
+                console.log(`Loaded ${products.length} products from localStorage fallback cache.`);
+                initDynamicCategories();
+                applyFilters();
+                return;
+            }
+        }
+    } catch (e) {}
 
     // 2. Fallback to local productsData global variable
     if (window.productsData) {
@@ -390,20 +438,50 @@ function applyFilters() {
         }
     }
     
-    // Apply global sort by code number (oldest first)
-    filteredProducts.sort((a, b) => {
-        // If sorting Piercings, preserve the subcategory grouping
-        if (activeCategory === 'Piercings') {
-            const piercingOrder = { 'Stud': 1, 'Huggie': 2, 'Earcuff': 3 };
-            const subA = a.subcategory || 'Otros';
-            const subB = b.subcategory || 'Otros';
-            const orderA = piercingOrder[subA] || 99;
-            const orderB = piercingOrder[subB] || 99;
-            if (orderA !== orderB) return 0; 
+    // Helper to get effective display price according to mode (mayoreo vs clientes)
+    const getEffectivePrice = (p) => {
+        const rawPrice = Number(mode === 'mayoreo' ? p.price_mayoreo : p.price_cliente) || 0;
+        if (rawPrice <= 0) return 0;
+        if (mode === 'mayoreo' && p.discount_percentage && p.discount_percentage > 0) {
+            return Math.round(rawPrice * (1 - (p.discount_percentage / 100)));
         }
-        
-        return getCodeNumber(a.code) - getCodeNumber(b.code);
-    });
+        return rawPrice;
+    };
+
+    if (activePriceSort === 'price_asc' || activePriceSort === 'price_desc') {
+        if (activeCategory === 'Piercings') {
+            filteredProducts = filteredProducts.map(p => {
+                const { displaySubcategory, ...rest } = p;
+                return rest;
+            });
+        }
+        filteredProducts.sort((a, b) => {
+            const priceA = getEffectivePrice(a);
+            const priceB = getEffectivePrice(b);
+            if (priceA <= 0 && priceB <= 0) return getCodeNumber(a.code) - getCodeNumber(b.code);
+            if (priceA <= 0) return 1;
+            if (priceB <= 0) return -1;
+            if (priceA !== priceB) {
+                return activePriceSort === 'price_asc' ? (priceA - priceB) : (priceB - priceA);
+            }
+            return getCodeNumber(a.code) - getCodeNumber(b.code);
+        });
+    } else {
+        // Apply global sort by code number (oldest first)
+        filteredProducts.sort((a, b) => {
+            // If sorting Piercings, preserve the subcategory grouping
+            if (activeCategory === 'Piercings') {
+                const piercingOrder = { 'Stud': 1, 'Huggie': 2, 'Earcuff': 3 };
+                const subA = a.subcategory || 'Otros';
+                const subB = b.subcategory || 'Otros';
+                const orderA = piercingOrder[subA] || 99;
+                const orderB = piercingOrder[subB] || 99;
+                if (orderA !== orderB) return 0; 
+            }
+            
+            return getCodeNumber(a.code) - getCodeNumber(b.code);
+        });
+    }
     
     // Reset Grid
     elements.productsGrid.innerHTML = '';
@@ -426,6 +504,33 @@ function applyFilters() {
             }
         }
     }
+}
+
+// Create the subtle inline price sort bar
+function createCatalogSortBar(afterHeader = false) {
+    const wrap = document.createElement('div');
+    wrap.className = `catalog-sort-bar${afterHeader ? ' after-header' : ''}`;
+    const isActive = activePriceSort !== 'default';
+    wrap.innerHTML = `
+        <div class="catalog-sort-pill${isActive ? ' active' : ''}">
+            <svg class="catalog-sort-icon" width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M3.5 2.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 11.293V2.5zm3.5 1a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zM7.5 6a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zm0 3a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3zm0 3a.5.5 0 0 0 0 1h1a.5.5 0 0 0 0-1h-1z"/>
+            </svg>
+            <select class="catalog-sort-select" aria-label="Ordenar por precio">
+                <option value="default" ${activePriceSort === 'default' ? 'selected' : ''}>Ordenar por</option>
+                <option value="price_asc" ${activePriceSort === 'price_asc' ? 'selected' : ''}>Precio: menor a mayor</option>
+                <option value="price_desc" ${activePriceSort === 'price_desc' ? 'selected' : ''}>Precio: mayor a menor</option>
+            </select>
+        </div>
+    `;
+    const selectEl = wrap.querySelector('.catalog-sort-select');
+    selectEl.addEventListener('change', (e) => {
+        activePriceSort = e.target.value;
+        const savedScrollY = window.scrollY;
+        applyFilters();
+        window.scrollTo(0, savedScrollY);
+    });
+    return wrap;
 }
 
 // Render the next page of products (for lazy loading)
@@ -451,6 +556,9 @@ function renderNextPage() {
         
         // Hero Banner
         if (window.bannerSettings && window.bannerSettings.active && window.bannerSettings.image) {
+            if (window.bannerSettings.onlyMayoreo && mode !== 'mayoreo') {
+                // Skip banner
+            } else {
             const heroWrap = document.createElement('div');
             heroWrap.style.gridColumn = '1 / -1';
             
@@ -476,6 +584,7 @@ function renderNextPage() {
                 </div>
             `;
             fragment.appendChild(heroWrap);
+            }
         }
 
         // Seasonal Carousel removed per request, now in dedicated view
@@ -527,6 +636,12 @@ function renderNextPage() {
         
         // Only use displaySubcategory (like 'NUEVO') for headers, ignore raw subcategory
         const displaySubcat = prod.displaySubcategory;
+        const isMainSectionHeader = searchQuery === '' && (displaySubcat === 'CATÁLOGO COMPLETO' || window.showingSeasonalOnly);
+
+        if (i === 0 && !isMainSectionHeader) {
+            fragment.appendChild(createCatalogSortBar(false));
+        }
+
         // Render header if it changes and it exists (only when not searching)
         if (searchQuery === '' && displaySubcat && displaySubcat !== lastSubcat) {
             lastSubcat = displaySubcat;
@@ -537,6 +652,10 @@ function renderNextPage() {
             headerDiv.style.gridColumn = '1 / -1';
             headerDiv.innerHTML = `<h2 class="section-title">${displaySubcat}</h2>`;
             fragment.appendChild(headerDiv);
+
+            if (i === 0 && isMainSectionHeader) {
+                fragment.appendChild(createCatalogSortBar(true));
+            }
         }
         
         const card = createProductCard(prod);
@@ -595,24 +714,44 @@ function createProductCard(product) {
     
     const price = mode === 'mayoreo' ? product.price_mayoreo : product.price_cliente;
     const imageSrc = product.has_image ? product.image : 'public/images/placeholder.webp';
-    const displayMaterial = product.material === 'Aleación de Metales' ? 'Aleaciones' : product.material;
+    const displayMaterial = product.material === 'Aleación de Metales' ? 'Aleación/Otros' : product.material;
+    
+    let isVariablePrice = !price || price === 0;
+    let priceHtml = '';
+    let btnText = 'Agregar al Pedido';
+    let extraBadges = '';
+    
+    if (isVariablePrice) {
+        priceHtml = `<span class="product-price" style="color:var(--gold-primary);">Preventa</span>`;
+        btnText = `Cotizar`;
+        extraBadges = ``;
+    } else {
+        if (mode === 'mayoreo' && product.discount_percentage && product.discount_percentage > 0) {
+            const discPrice = Math.round(price * (1 - (product.discount_percentage/100)));
+            priceHtml = `<span class="product-price"><del style="color:#999; font-size:0.85rem; margin-right:5px;">$${price}</del>$${discPrice}</span>`;
+            extraBadges = `<span class="discount-badge" style="position:absolute; bottom:10px; left:10px; background-color:#ff4d4f; color:white; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.75rem; z-index:2;">-${product.discount_percentage}% DESC</span>`;
+        } else {
+            priceHtml = `<span class="product-price">$${price}</span>`;
+        }
+    }
     
     card.innerHTML = `
-        <div class="image-container">
+        <div class="image-container" style="position:relative;">
             <img class="product-image" src="${imageSrc}" alt="${product.code}" loading="lazy" style="object-position: center ${product.image_offset_y !== undefined ? product.image_offset_y : 50}%;">
             <span class="material-tag">${displayMaterial}</span>
+            ${extraBadges}
         </div>
         <div class="product-info">
             <div class="product-header">
                 <span class="product-code">${getProductLabel(product)}</span>
-                <span class="product-price">$${price}</span>
+                ${priceHtml}
             </div>
             ${product.details && product.details.trim() ? `<div class="product-details">${product.details}</div>` : ''}
             <button class="add-to-cart-btn">
                 <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M8 1a2.5 2.5 0 0 1 2.5 2.5V4h-5v-.5A2.5 2.5 0 0 1 8 1zm3.5 3v-.5a3.5 3.5 0 1 0-7 0V4H1v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4h-3.5zM2 5h12v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z"/>
                 </svg>
-                Agregar al Pedido
+                ${btnText}
             </button>
         </div>
     `;
@@ -1241,8 +1380,21 @@ function openModal(product) {
         elements.modalImage.src = imageSrc;
     }
     
-    elements.modalTitle.textContent = `${getProductLabel(product)} - $${price}`;
-    const displayMaterial = product.material === 'Aleación de Metales' ? 'Aleaciones' : product.material;
+    let isVariablePrice = !price || price === 0;
+    if (isVariablePrice) {
+        elements.modalTitle.innerHTML = `${getProductLabel(product)} - <span style="color:var(--gold-primary);">Preventa</span>`;
+        elements.modalAddToCart.innerHTML = `Cotizar`;
+    } else {
+        elements.modalAddToCart.innerHTML = window.mode === 'mayoreo' ? 'Agregar al Pedido' : 'Agregar a mi Lista';
+        if (mode === 'mayoreo' && product.discount_percentage && product.discount_percentage > 0) {
+            const discPrice = Math.round(price * (1 - (product.discount_percentage/100)));
+            elements.modalTitle.innerHTML = `${getProductLabel(product)} - <del style="color:#999; font-size:0.8em; margin-right:5px;">$${price}</del>$${discPrice}`;
+        } else {
+            elements.modalTitle.innerHTML = `${getProductLabel(product)} - $${price}`;
+        }
+    }
+    
+    const displayMaterial = product.material === 'Aleación de Metales' ? 'Aleación/Otros' : product.material;
     elements.modalDesc.textContent = product.details && product.details.trim() ? `${displayMaterial} | ${product.details}` : displayMaterial;
 
     const modalRight = elements.modalOverlay.querySelector('.modal-right');
@@ -1708,11 +1860,12 @@ function updateCartUI() {
                 }
             }
             
+            const priceDisplay = (!basePrice || basePrice === 0) ? '<span style="color:var(--gold-primary);">Cotizar en chat</span>' : `$${price} c/u`;
             itemDiv.innerHTML = `
                 <img class="cart-item-img" src="${imageSrc}" alt="${product.code}">
                 <div class="cart-item-info">
                     <div class="cart-item-code">${product.code}</div>
-                    <div class="cart-item-price">$${price} c/u</div>
+                    <div class="cart-item-price">${priceDisplay}</div>
                     ${customDetailsHTML}
                     <div class="cart-item-qty">
                         <button class="qty-btn minus">-</button>
@@ -1735,6 +1888,48 @@ function updateCartUI() {
     // Update Badge and Totals
     elements.cartBadge.textContent = totalItems;
     elements.cartTotalVal.textContent = `$${totalPrice}`;
+    
+    // Update Mobile Floating Cart Pill
+    let floatingCartBtn = document.getElementById('mobile-floating-cart');
+    if (!floatingCartBtn) {
+        floatingCartBtn = document.createElement('button');
+        floatingCartBtn.id = 'mobile-floating-cart';
+        floatingCartBtn.className = 'mobile-floating-cart';
+        floatingCartBtn.type = 'button';
+        floatingCartBtn.setAttribute('aria-label', mode === 'mayoreo' ? 'Ver pedido' : 'Ver lista');
+        floatingCartBtn.innerHTML = `
+            <svg class="mfc-icon" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 1a2.5 2.5 0 0 1 2.5 2.5V4h-5v-.5A2.5 2.5 0 0 1 8 1zm3.5 3v-.5a3.5 3.5 0 1 0-7 0V4H1v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4h-3.5zM2 5h12v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z"/>
+            </svg>
+            <span class="mfc-badge" id="mfc-badge">0</span>
+            <span class="mfc-divider">•</span>
+            <span class="mfc-total" id="mfc-total">$0</span>
+        `;
+        floatingCartBtn.addEventListener('click', toggleCartDrawer);
+        document.body.appendChild(floatingCartBtn);
+    }
+
+    const mfcBadge = document.getElementById('mfc-badge');
+    const mfcTotal = document.getElementById('mfc-total');
+    const prevTotalItems = parseInt(floatingCartBtn.dataset.count || '0', 10);
+
+    if (mfcBadge) mfcBadge.textContent = totalItems;
+    if (mfcTotal) {
+        mfcTotal.textContent = totalPrice > 0 ? `$${totalPrice}` : (mode === 'mayoreo' ? 'Ver Pedido' : 'Ver Lista');
+    }
+
+    const isDrawerOpen = elements.cartDrawer && elements.cartDrawer.classList.contains('active');
+    if (totalItems > 0 && !isDrawerOpen) {
+        floatingCartBtn.classList.add('visible');
+        if (totalItems > prevTotalItems) {
+            floatingCartBtn.classList.remove('pulse');
+            void floatingCartBtn.offsetWidth; // Trigger reflow for smooth pulse restart
+            floatingCartBtn.classList.add('pulse');
+        }
+    } else {
+        floatingCartBtn.classList.remove('visible', 'pulse');
+    }
+    floatingCartBtn.dataset.count = totalItems;
     
     // Check Shipping Rules
     let shipping = 0;
@@ -1874,6 +2069,16 @@ function updateCartUI() {
 
 function toggleCartDrawer() {
     elements.cartDrawer.classList.toggle('active');
+    const floatingCartBtn = document.getElementById('mobile-floating-cart');
+    if (floatingCartBtn) {
+        const count = parseInt(floatingCartBtn.dataset.count || '0', 10);
+        const isOpen = elements.cartDrawer.classList.contains('active');
+        if (count > 0 && !isOpen) {
+            floatingCartBtn.classList.add('visible');
+        } else {
+            floatingCartBtn.classList.remove('visible', 'pulse');
+        }
+    }
 }
 
 function saveCart() {
@@ -1971,7 +2176,11 @@ function handleCheckout() {
         }
         
         const categoryText = singularCatStr ? `(${singularCatStr})` : '';
-        message += `• *${qty}x* ${product.code}${customInfo} ${categoryText} - $${price} c/u (Sub: $${subtotal})\n`;
+        if (!basePrice || basePrice === 0) {
+            message += `🔹 *${qty}x* ${product.code}${customInfo} ${categoryText} - (Cotizar en chat)\n`;
+        } else {
+            message += `🔹 *${qty}x* ${product.code}${customInfo} ${categoryText} - $${price} c/u (Sub: $${subtotal})\n`;
+        }
     });
     
     let shipping = 0;

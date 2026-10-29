@@ -530,6 +530,13 @@
 
             <div style="grid-column: 1 / -1; margin-top: 10px;">
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="banner-only-mayoreo" style="width: 20px; height: 20px;">
+                    <span style="font-weight: 500;">&#191;Mostrar banner SOLO en cat&#225;logo de Mayoreo? (Si est&#225; desmarcado, saldr&#225; en ambos)</span>
+                </label>
+            </div>
+
+            <div style="grid-column: 1 / -1; margin-top: 10px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                     <input type="checkbox" id="banner-show-btn" style="width: 20px; height: 20px;">
                     <span style="font-weight: 500;">¿Mostrar botón "Ver Colección"? (Redirigirá a la Colección de Temporada)</span>
                 </label>
@@ -583,7 +590,7 @@
     <section class="admin-controls">
         <div class="control-group">
             <!-- Search bar -->
-            <div class="search-wrapper" style="margin: 0; min-width: 280px;">
+            <div class="search-wrapper" style="margin: 0; flex: 0 1 250px; min-width: 220px;">
                 <span class="search-icon">
                     <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
@@ -607,6 +614,13 @@
                 <option value="all">Todos los Estados</option>
                 <option value="active">Activos</option>
                 <option value="inactive">Desactivados</option>
+            </select>
+
+            <!-- Price filter -->
+            <select id="admin-filter-price" class="admin-select">
+                <option value="all">Filtrar por Precio</option>
+                <option value="asc">Precio: Menor a Mayor</option>
+                <option value="desc">Precio: Mayor a Menor</option>
             </select>
 
             <!-- Sort option -->
@@ -750,9 +764,15 @@
                                 <input type="number" id="p-price-mayoreo" class="form-input" placeholder="Ej: 98" min="0" required>
                             </div>
                             <div class="form-group">
-                                <label for="p-price-cliente">Precio al Público ($)</label>
+                                <label for="p-price-cliente">Precio al P&#250;blico ($)</label>
                                 <input type="number" id="p-price-cliente" class="form-input" placeholder="Doble (2x)">
                             </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="p-discount">Descuento (%) (Opcional)</label>
+                            <input type="number" id="p-discount" class="form-input" placeholder="Ej: 15" min="0" max="100">
+                            <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 4px;">Ingresa el porcentaje de descuento (ej. 15). Se mostrar&#225; una etiqueta en el cat&#225;logo.</small>
                         </div>
 
                         <div class="form-group" style="margin-bottom: 1.5rem;">
@@ -948,6 +968,7 @@
         const filterCategory = document.getElementById('admin-filter-category');
         const filterMaterial = document.getElementById('admin-filter-material');
         const filterStatus = document.getElementById('admin-filter-status');
+        const filterPrice = document.getElementById('admin-filter-price');
         const sortOrder = document.getElementById('admin-sort-order');
         const addProductBtn = document.getElementById('add-product-btn');
         const modal = document.getElementById('product-modal');
@@ -1002,19 +1023,35 @@ const fileInput = document.getElementById('p-image-file');
                         if (!hasImg) {
                             batch.update(doc.ref, { active: false });
                             deactivated++;
-                        } else {
-                            batch.update(doc.ref, { active: true });
-                            reactivated++;
                         }
                     });
                     await batch.commit();
                 }
                 
-                alert(`¡Listo! Se ocultaron ${deactivated} productos sin foto y se aseguraron ${reactivated} productos activos.`);
-                loadProducts(); 
+                await syncCatalogMetaAndCache();
+                alert(`¡Listo! Se ocultaron ${deactivated} productos sin foto.`);
+                window.location.reload(); 
             } catch(e) {
                 console.error(e);
                 alert('Error al actualizar productos: ' + e.message);
+            }
+        }
+
+        // Sync catalog version timestamp in Firestore and local caches so clients & admin save 95%+ reads
+        async function syncCatalogMetaAndCache() {
+            const now = Date.now();
+            try {
+                if (window.db) {
+                    await window.db.collection('settings').doc('catalog_meta').set({ lastUpdated: now }, { merge: true });
+                }
+                localStorage.setItem('acc_admin_cache_v1', JSON.stringify(products));
+                localStorage.setItem('acc_admin_ts_v1', String(now));
+                localStorage.setItem('acc_admin_fetched_at_v1', String(now));
+                const activeOnly = products.filter(p => p.active !== false);
+                localStorage.setItem('acc_catalog_cache_v1', JSON.stringify(activeOnly));
+                localStorage.setItem('acc_catalog_ts_v1', String(now));
+            } catch (e) {
+                console.warn('Cache sync warning:', e);
             }
         }
         
@@ -1022,23 +1059,70 @@ const fileInput = document.getElementById('p-image-file');
         async function init() {
             if (window.db) {
                 try {
-                    showToast('Cargando base de datos de la nube...', 'success');
-                    const snapshot = await window.db.collection('products').get();
-                    if (snapshot.empty) {
-                        // Show migration banner
-                        document.getElementById('migration-banner').style.display = 'flex';
-                        setupMigrationListener();
-                    } else {
-                        // Load products from Firestore
-                        const fbProducts = [];
-                        snapshot.forEach(doc => {
-                            fbProducts.push(doc.data());
-                        });
-                        products = fbProducts;
-                        console.log(`Loaded ${products.length} products from Cloud Firestore.`);
+                    let loadedFromCache = false;
+                    let cloudLastUpdated = 0;
+                    try {
+                        const metaDoc = await window.db.collection('settings').doc('catalog_meta').get();
+                        if (metaDoc.exists && metaDoc.data().lastUpdated) {
+                            cloudLastUpdated = Number(metaDoc.data().lastUpdated) || 0;
+                        }
+                        const cachedTs = Number(localStorage.getItem('acc_admin_ts_v1')) || 0;
+                        const fetchedAt = Number(localStorage.getItem('acc_admin_fetched_at_v1')) || 0;
+                        const cacheAgeMs = Date.now() - fetchedAt;
+                        const cachedDataStr = localStorage.getItem('acc_admin_cache_v1');
+
+                        if (cloudLastUpdated > 0 && cachedTs === cloudLastUpdated && cacheAgeMs < 30 * 60 * 1000 && cachedDataStr) {
+                            const parsed = JSON.parse(cachedDataStr);
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                products = parsed;
+                                loadedFromCache = true;
+                                console.log(`Loaded ${products.length} products from instant local cache (1 read used).`);
+                            }
+                        }
+                    } catch (cacheErr) {
+                        console.warn('Admin cache check skipped:', cacheErr);
+                    }
+
+                    if (!loadedFromCache) {
+                        showToast('Cargando base de datos de la nube...', 'success');
+                        const snapshot = await window.db.collection('products').get();
+                        if (snapshot.empty) {
+                            // Show migration banner
+                            document.getElementById('migration-banner').style.display = 'flex';
+                            setupMigrationListener();
+                        } else {
+                            // Load products from Firestore
+                            const fbProducts = [];
+                            snapshot.forEach(doc => {
+                                fbProducts.push(doc.data());
+                            });
+                            products = fbProducts;
+                            console.log(`Loaded ${products.length} products from Cloud Firestore.`);
+                            try {
+                                const tsToSave = cloudLastUpdated || Date.now();
+                                if (!cloudLastUpdated) {
+                                    await window.db.collection('settings').doc('catalog_meta').set({ lastUpdated: tsToSave }, { merge: true });
+                                }
+                                localStorage.setItem('acc_admin_cache_v1', JSON.stringify(products));
+                                localStorage.setItem('acc_admin_ts_v1', String(tsToSave));
+                                localStorage.setItem('acc_admin_fetched_at_v1', String(Date.now()));
+                            } catch (saveCacheErr) {
+                                console.warn('Could not save admin cache:', saveCacheErr);
+                            }
+                        }
                     }
                 } catch (e) {
                     console.error("Error loading from Firestore, using local fallback:", e);
+                    try {
+                        const cachedAdminStr = localStorage.getItem('acc_admin_cache_v1');
+                        if (cachedAdminStr) {
+                            const parsedAdmin = JSON.parse(cachedAdminStr);
+                            if (Array.isArray(parsedAdmin) && parsedAdmin.length > 0) {
+                                products = parsedAdmin;
+                                console.log(`Loaded ${products.length} products from local admin cache fallback.`);
+                            }
+                        }
+                    } catch (errCache) {}
                     showToast('Error cargando de la nube. Usando datos locales.', 'error');
                 }
             }
@@ -1104,6 +1188,7 @@ const fileInput = document.getElementById('p-image-file');
                     document.getElementById('banner-title').value = data.title || '';
                     document.getElementById('banner-show-btn').checked = data.showBtn !== undefined ? data.showBtn : (!!data.link);
                     document.getElementById('banner-active').checked = data.active || false;
+                    document.getElementById('banner-only-mayoreo').checked = data.onlyMayoreo || false;
                     document.getElementById('banner-position').value = data.positionY !== undefined ? data.positionY : 50;
                     
                     if (data.image) {
@@ -1174,6 +1259,7 @@ const fileInput = document.getElementById('p-image-file');
                     title: document.getElementById('banner-title').value,
                     showBtn: document.getElementById('banner-show-btn').checked,
                     active: document.getElementById('banner-active').checked,
+                    onlyMayoreo: document.getElementById('banner-only-mayoreo').checked,
                     image: bannerImageUrl,
                     positionY: parseInt(document.getElementById('banner-position').value, 10)
                 };
@@ -1324,8 +1410,13 @@ const fileInput = document.getElementById('p-image-file');
             });
 
             // Sort products
+            const priceSort = filterPrice ? filterPrice.value : 'all';
             const sortBy = sortOrder.value;
-            if (sortBy === 'views') {
+            if (priceSort === 'asc') {
+                filtered.sort((a, b) => (Number(a.price_cliente) || 0) - (Number(b.price_cliente) || 0));
+            } else if (priceSort === 'desc') {
+                filtered.sort((a, b) => (Number(b.price_cliente) || 0) - (Number(a.price_cliente) || 0));
+            } else if (sortBy === 'views') {
                 filtered.sort((a, b) => (b.views || 0) - (a.views || 0));
             } else {
                 filtered.sort((a, b) => a.code.localeCompare(b.code));
@@ -1467,7 +1558,13 @@ const fileInput = document.getElementById('p-image-file');
             filterCategory.addEventListener('change', resetPaginationAndRender);
             filterMaterial.addEventListener('change', resetPaginationAndRender);
             filterStatus.addEventListener('change', resetPaginationAndRender);
-            sortOrder.addEventListener('change', resetPaginationAndRender);
+            if (filterPrice) {
+                filterPrice.addEventListener('change', resetPaginationAndRender);
+            }
+            sortOrder.addEventListener('change', () => {
+                if (filterPrice) filterPrice.value = 'all';
+                resetPaginationAndRender();
+            });
 
             addProductBtn.addEventListener('click', openAddModal);
             modalClose.addEventListener('click', closeModal);
@@ -1538,6 +1635,7 @@ const fileInput = document.getElementById('p-image-file');
                             products[index].restocked_at = updateData.restocked_at;
                         }
                         await window.db.collection('products').doc(code).update(updateData);
+                        await syncCatalogMetaAndCache();
                         showToast(isChecked ? 'Producto activado en la nube' : 'Producto pausado en la nube', 'success');
                     } catch (err) {
                         console.error("Firestore toggle failed:", err);
@@ -1717,6 +1815,7 @@ const fileInput = document.getElementById('p-image-file');
             formPriceMayoreo.value = prod.price_mayoreo || 0;
             formPriceCliente.value = prod.price_cliente || '';
             formPriceCliente.placeholder = (prod.price_mayoreo || 0) * 2;
+            document.getElementById('p-discount').value = prod.discount_percentage || '';
             formDetails.value = prod.details || '';
             formMultiAritos.checked = prod.multi_aritos === true;
             document.getElementById('p-aritos-base-count').value = prod.aritos_base_count || '2';
@@ -2091,6 +2190,7 @@ const fileInput = document.getElementById('p-image-file');
             const is_mens = formIsMens.checked;
             const priceMayoreo = parseInt(formPriceMayoreo.value);
             let priceCliente = parseInt(formPriceCliente.value);
+            const discountPercentage = parseInt(document.getElementById('p-discount').value) || 0;
             const multiAritos = document.getElementById('p-multi-aritos').checked;
             const aritosBaseCount = parseInt(document.getElementById('p-aritos-base-count').value) || 2;
             const aritosPriceMayoreo = parseFloat(document.getElementById('p-aritos-price-mayoreo').value) || 0;
@@ -2281,6 +2381,7 @@ const fileInput = document.getElementById('p-image-file');
                         material,
                         price_mayoreo: priceMayoreo,
                         price_cliente: priceCliente,
+                        discount_percentage: discountPercentage,
                         details,
                         multi_aritos: multiAritos,
                         aritos_base_count: aritosBaseCount,
@@ -2339,6 +2440,7 @@ const fileInput = document.getElementById('p-image-file');
                     material,
                     price_mayoreo: priceMayoreo,
                     price_cliente: priceCliente,
+                    discount_percentage: discountPercentage,
                     details,
                     multi_aritos: multiAritos,
                     aritos_base_count: aritosBaseCount,
@@ -2382,6 +2484,7 @@ const fileInput = document.getElementById('p-image-file');
                     }
                     
                     await window.db.collection('products').doc(targetProductObj.code).set(targetProductObj);
+                    await syncCatalogMetaAndCache();
                     saved = true;
                     showToast(isEditing ? 'Producto actualizado en la nube' : 'Producto agregado en la nube', 'success');
                 } catch (dbErr) {
@@ -2417,6 +2520,7 @@ const fileInput = document.getElementById('p-image-file');
                 // Delete from Firestore
                 if (window.db) {
                     await window.db.collection('products').doc(code).delete();
+                    await syncCatalogMetaAndCache();
                     showToast('Producto eliminado de la nube', 'success');
                 } else {
                     await saveDatabase();
