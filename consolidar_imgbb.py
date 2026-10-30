@@ -83,19 +83,28 @@ def download_and_convert_to_webp(url, dest_filename):
     if os.path.exists(dest_path) and os.path.getsize(dest_path) > 100:
         return f"public/images/{dest_filename}"
 
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        raw_bytes = resp.read()
-    img = Image.open(io.BytesIO(raw_bytes))
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGBA")
-    else:
-        img = img.convert("RGB")
-    img.thumbnail((800, 800), Image.Resampling.LANCZOS)
-    img.save(dest_path, "WEBP", quality=82)
-    if os.path.exists(dest_path) and os.path.getsize(dest_path) > 100:
-        return f"public/images/{dest_filename}"
-    raise RuntimeError(f"Archivo WebP inválido: {dest_path}")
+    last_error = None
+    for attempt in range(5):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                raw_bytes = resp.read()
+            img = Image.open(io.BytesIO(raw_bytes))
+            # Verify it is not the ImgBB blue error placeholder
+            if img.size == (180, 180):
+                raise RuntimeError("ImgBB 180x180 error placeholder")
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGBA")
+            else:
+                img = img.convert("RGB")
+            img.thumbnail((800, 800), Image.Resampling.LANCZOS)
+            img.save(dest_path, "WEBP", quality=82)
+            if os.path.exists(dest_path) and os.path.getsize(dest_path) > 100:
+                return f"public/images/{dest_filename}"
+        except Exception as e:
+            last_error = e
+            time.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"Fallo tras 5 intentos: {last_error}")
 
 
 def batch_commit_firestore(updated_products):
@@ -179,7 +188,7 @@ def phase_download():
     url_to_local = {}
     failed_urls = 0
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:
         future_to_url = {
             executor.submit(download_and_convert_to_webp, url, fname): url
             for url, fname in tasks.items()
