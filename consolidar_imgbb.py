@@ -169,17 +169,17 @@ def phase_download():
         safe_code = re.sub(r"[^A-Za-z0-9_-]", "_", code)
 
         main_img = p.get("image") or ""
-        if isinstance(main_img, str) and "ibb.co" in main_img:
+        if isinstance(main_img, str) and ("ibb.co" in main_img or "cloudinary.com" in main_img):
             tasks[main_img] = f"{safe_code}_main.webp"
 
         if isinstance(p.get("images"), list):
             for idx, img_url in enumerate(p["images"]):
-                if isinstance(img_url, str) and "ibb.co" in img_url and img_url not in tasks:
+                if isinstance(img_url, str) and ("ibb.co" in img_url or "cloudinary.com" in img_url) and img_url not in tasks:
                     tasks[img_url] = f"{safe_code}_gal_{idx}.webp"
 
         if isinstance(p.get("color_variants"), list):
             for v_idx, var in enumerate(p["color_variants"]):
-                if isinstance(var, dict) and isinstance(var.get("image"), str) and "ibb.co" in var["image"]:
+                if isinstance(var, dict) and isinstance(var.get("image"), str) and ("ibb.co" in var["image"] or "cloudinary.com" in var["image"]):
                     v_url = var["image"]
                     if v_url not in tasks:
                         tasks[v_url] = f"{safe_code}_var_{v_idx}.webp"

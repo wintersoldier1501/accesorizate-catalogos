@@ -13,6 +13,12 @@ window.firebaseConfig = {
 // Clave API de Imgbb para subida de fotos gratuita y sin tarjeta
 window.imgbbApiKey = "493fdacac64bf23ed3a0977692dfe291";
 
+// Configuración de Cloudinary para subida rápida y confiable
+window.cloudinaryConfig = {
+  cloudName: "cwolshje",
+  uploadPreset: "catalogos108"
+};
+
 // Indica si la configuración ha sido rellenada
 window.isFirebaseConfigured = function() {
     return window.firebaseConfig && 

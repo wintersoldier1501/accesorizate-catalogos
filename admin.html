@@ -898,7 +898,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
-    <script src="public/js/firebase-config.js?v=1.2"></script>
+    <script src="public/js/firebase-config.js?v=1.3"></script>
 
     <!-- Load product database -->
     <script src="public/data/products_data.js?v=1.2"></script>
@@ -1232,7 +1232,19 @@ const fileInput = document.getElementById('p-image-file');
                 if (bannerImageFile) {
                     showToast('Subiendo imagen, espera por favor...', 'info');
                     
-                    if (window.imgbbApiKey) {
+                    if (window.cloudinaryConfig && window.cloudinaryConfig.cloudName && window.cloudinaryConfig.uploadPreset) {
+                        // Use Cloudinary
+                        const formData = new FormData();
+                        formData.append('upload_preset', window.cloudinaryConfig.uploadPreset);
+                        formData.append('file', bannerImageFile);
+                        const response = await fetch(`https://api.cloudinary.com/v1_1/${window.cloudinaryConfig.cloudName}/image/upload`, { method: 'POST', body: formData });
+                        const resData = await response.json();
+                        if (resData.secure_url) {
+                            bannerImageUrl = resData.secure_url;
+                        } else {
+                            throw new Error(resData.error?.message || 'Error al subir a Cloudinary');
+                        }
+                    } else if (window.imgbbApiKey) {
                         // Use Imgbb
                         const formData = new FormData();
                         formData.append('key', window.imgbbApiKey);
@@ -2273,7 +2285,24 @@ const fileInput = document.getElementById('p-image-file');
             async function uploadFilesHelper(filesToUpload, prefixStr = '') {
                 if (filesToUpload.length === 0) return [];
                 
-                if (window.imgbbApiKey) {
+                if (window.cloudinaryConfig && window.cloudinaryConfig.cloudName && window.cloudinaryConfig.uploadPreset) {
+                    const uploadedUrls = [];
+                    for (const img of filesToUpload) {
+                        const formData = new FormData();
+                        formData.append('upload_preset', window.cloudinaryConfig.uploadPreset);
+                        const imageBlob = await compressImageToBlob(img.dataUrl);
+                        formData.append('file', imageBlob, 'photo.jpg');
+                        
+                        const response = await fetch(`https://api.cloudinary.com/v1_1/${window.cloudinaryConfig.cloudName}/image/upload`, { method: 'POST', body: formData });
+                        const resData = await response.json();
+                        if (resData.secure_url) {
+                            uploadedUrls.push(resData.secure_url);
+                        } else {
+                            throw new Error(resData.error?.message || 'Error al subir a Cloudinary');
+                        }
+                    }
+                    return uploadedUrls;
+                } else if (window.imgbbApiKey) {
                     const uploadedUrls = [];
                     for (const img of filesToUpload) {
                         const formData = new FormData();
