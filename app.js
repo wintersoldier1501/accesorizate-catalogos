@@ -102,8 +102,8 @@ async function fetchProducts() {
         // Check smart versioned local cache (saves ~1,800 reads when no admin changes occurred)
         if (cloudLastUpdated > 0) {
             try {
-                const cachedTs = Number(localStorage.getItem('acc_catalog_ts_v1')) || 0;
-                const cachedStr = localStorage.getItem('acc_catalog_cache_v1');
+                const cachedTs = Number(localStorage.getItem('acc_catalog_ts_v2')) || 0;
+                const cachedStr = localStorage.getItem('acc_catalog_cache_v2');
                 if (cachedTs === cloudLastUpdated && cachedStr) {
                     const cachedProducts = JSON.parse(cachedStr);
                     if (Array.isArray(cachedProducts) && cachedProducts.length > 0) {
@@ -125,10 +125,7 @@ async function fetchProducts() {
             let fbProducts = [];
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                // Filter active status in code to be consistent with admin panel controls
-                if (data.active !== false) {
-                    fbProducts.push(data);
-                }
+                fbProducts.push(data);
             });
             
             if (fbProducts.length > 0) {
@@ -139,8 +136,8 @@ async function fetchProducts() {
                     if (!cloudLastUpdated) {
                         window.db.collection("settings").doc("catalog_meta").set({ lastUpdated: tsToSave }, { merge: true }).catch(() => {});
                     }
-                    localStorage.setItem('acc_catalog_cache_v1', JSON.stringify(fbProducts));
-                    localStorage.setItem('acc_catalog_ts_v1', String(tsToSave));
+                    localStorage.setItem('acc_catalog_cache_v2', JSON.stringify(fbProducts));
+                    localStorage.setItem('acc_catalog_ts_v2', String(tsToSave));
                 } catch (saveErr) {
                     console.warn("Could not save smart cache:", saveErr);
                 }
@@ -157,7 +154,7 @@ async function fetchProducts() {
 
     // 1.5 Fallback to most recent smart cache in localStorage if Firebase is offline/quota reached
     try {
-        const cachedStr = localStorage.getItem('acc_catalog_cache_v1');
+        const cachedStr = localStorage.getItem('acc_catalog_cache_v2');
         if (cachedStr) {
             const cachedProducts = JSON.parse(cachedStr);
             if (Array.isArray(cachedProducts) && cachedProducts.length > 0) {
