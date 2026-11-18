@@ -20,6 +20,7 @@ let activePriceSort = 'default';
 let searchQuery = '';
 let renderedCount = 0;
 let mode = 'clientes'; // 'clientes' or 'mayoreo'
+let showInactive = false;
 let lastSubcat = '';
 
 // DOM Elements
@@ -50,6 +51,7 @@ const elements = {
 document.addEventListener('DOMContentLoaded', () => {
     // Detect mode from body attribute
     mode = document.body.dataset.mode || 'clientes';
+    showInactive = document.body.dataset.showInactive === 'true';
     
     // Initialize Firebase if configured
     if (window.isFirebaseConfigured && window.isFirebaseConfigured()) {
@@ -323,7 +325,7 @@ function applyFilters() {
         // Homepage Browse View (Todos / no search)
         // 1. Get all active standard products (excluding Personalized and Niñas)
             const standardProducts = products.filter(p => {
-                if (p.active === false) return false;
+                if (p.active === false && (!showInactive || !p.has_image || !p.image)) return false;
                 
                 const isLegacyPersonalized = p.is_personalized === undefined && (['Collares', 'Llaveros'].includes(p.category) && p.subcategory === 'Personalizados');
                 const isCategoryPersonalized = p.show_in_personalized === true || p.is_personalized === true || isLegacyPersonalized ||
@@ -383,7 +385,7 @@ function applyFilters() {
         window.showCarousels = false;
         // Standard category view or search view
         filteredProducts = products.filter(p => {
-            if (p.active === false) return false;
+            if (p.active === false && (!showInactive || !p.has_image || !p.image)) return false;
 
             const isLegacyPersonalized = p.is_personalized === undefined && (['Collares', 'Llaveros'].includes(p.category) && p.subcategory === 'Personalizados');
             const isCategoryPersonalized = p.show_in_personalized === true || p.is_personalized === true || isLegacyPersonalized ||
@@ -774,7 +776,23 @@ function createProductCard(product) {
     imgContainer.addEventListener('click', () => openModal(product));
     
     const addToCartBtn = card.querySelector('.add-to-cart-btn');
+    if (showInactive && product.active === false) {
+        const imgCont = card.querySelector('.image-container');
+        if (imgCont) {
+            const soldBadge = document.createElement('span');
+            soldBadge.style.cssText = 'position:absolute; bottom:10px; left:10px; background-color:rgba(44,44,46,0.85); color:#fff; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.72rem; letter-spacing:0.05em; z-index:2;';
+            soldBadge.textContent = 'AGOTADO';
+            imgCont.appendChild(soldBadge);
+        }
+        addToCartBtn.disabled = true;
+        addToCartBtn.style.cssText = 'background-color: #e4e4e7; color: #7e7e80; border-color: #d4d4d8; cursor: not-allowed; opacity: 0.85;';
+        addToCartBtn.textContent = 'Agotado';
+    }
     addToCartBtn.addEventListener('click', (e) => {
+        if (showInactive && product.active === false) {
+            e.stopPropagation();
+            return;
+        }
         e.stopPropagation();
         const hasVariants = product.color_variants && product.color_variants.length > 0;
         const isLegacyPersonalized = product.is_personalized === undefined && (['Collares', 'Llaveros'].includes(product.category) && product.subcategory === 'Personalizados');
@@ -1598,7 +1616,16 @@ function openModal(product) {
     }
 
     // Setup Add to Cart button inside modal
+    if (showInactive && product.active === false) {
+        elements.modalAddToCart.innerHTML = 'Agotado';
+        elements.modalAddToCart.disabled = true;
+        elements.modalAddToCart.style.cssText = 'flex: 1; background-color: #b0b0b5; color: #ffffff; cursor: not-allowed; opacity: 0.8;';
+    } else {
+        elements.modalAddToCart.disabled = false;
+        elements.modalAddToCart.style.cssText = 'flex: 1;';
+    }
     elements.modalAddToCart.onclick = () => {
+        if (showInactive && product.active === false) return;
         let customText = '';
         let customFont = '';
         let aritosCount = 2;
