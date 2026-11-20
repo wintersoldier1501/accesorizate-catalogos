@@ -74,63 +74,148 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
 });
 
-// Fetch products from JSON database or local JS variable
+// Helper: enforce timeout so slow/unavailable Firestore never stalls the page
+function withTimeout(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout')), ms))
+    ]);
+}
+
+// Fetch products with Instant Local Render + Background Firebase Sync (Stale-While-Revalidate)
 async function fetchProducts() {
-    // 1. Fetch from Firebase Firestore if available
+    let renderedInitial = false;
+    let cachedTs = 0;
+    let initialBannerStr = '';
+    let initialSeasonalStr = '';
+
+    // 0. Restore cached banner/seasonal settings immediately if available
+    try {
+        const cachedSettingsStr = localStorage.getItem('acc_catalog_settings_v2');
+        if (cachedSettingsStr) {
+            const parsedSettings = JSON.parse(cachedSettingsStr);
+            if (parsedSettings && typeof parsedSettings === 'object') {
+                if (parsedSettings.banner) {
+                    window.bannerSettings = parsedSettings.banner;
+                    initialBannerStr = JSON.stringify(parsedSettings.banner);
+                }
+                if (parsedSettings.seasonal) {
+                    window.seasonalSettings = parsedSettings.seasonal;
+                    initialSeasonalStr = JSON.stringify(parsedSettings.seasonal);
+                }
+            }
+        }
+    } catch (e) {}
+
+    // 1. INSTANT RENDER: Load immediately from smart localStorage cache OR bundled PRODUCTS_DATA
+    try {
+        cachedTs = Number(localStorage.getItem('acc_catalog_ts_v2')) || 0;
+        const cachedStr = localStorage.getItem('acc_catalog_cache_v2');
+        if (cachedStr) {
+            const cachedProducts = JSON.parse(cachedStr);
+            if (Array.isArray(cachedProducts) && cachedProducts.length > 0) {
+                products = cachedProducts;
+                renderedInitial = true;
+                console.log(`Instant render: ${products.length} products loaded from smart cache.`);
+                initDynamicCategories();
+                applyFilters();
+                updateCartUI();
+            }
+        }
+    } catch (cacheErr) {
+        console.warn("Smart cache read skipped:", cacheErr);
+    }
+
+    if (!renderedInitial && (window.PRODUCTS_DATA || window.productsData)) {
+        products = window.PRODUCTS_DATA || window.productsData;
+        renderedInitial = true;
+        console.log(`Instant render: ${products.length} products loaded from bundled PRODUCTS_DATA.`);
+        initDynamicCategories();
+        applyFilters();
+        updateCartUI();
+    }
+
+    // 2. BACKGROUND SYNC: Check Firebase Firestore without ever blocking the screen
     if (window.db) {
         let cloudLastUpdated = 0;
+        let settingsChanged = false;
+        let metaFetchedOk = false;
+
         try {
-            const [bannerRes, seasonalRes, metaRes] = await Promise.allSettled([
-                window.db.collection("settings").doc("banner").get(),
-                window.db.collection("settings").doc("seasonal").get(),
-                window.db.collection("settings").doc("catalog_meta").get()
-            ]);
+            const [bannerRes, seasonalRes, metaRes] = await withTimeout(
+                Promise.allSettled([
+                    window.db.collection("settings").doc("banner").get(),
+                    window.db.collection("settings").doc("seasonal").get(),
+                    window.db.collection("settings").doc("catalog_meta").get()
+                ]),
+                8000
+            );
+
+            let newBanner = window.bannerSettings || null;
+            let newSeasonal = window.seasonalSettings || null;
 
             if (bannerRes.status === 'fulfilled' && bannerRes.value.exists) {
-                window.bannerSettings = bannerRes.value.data();
+                newBanner = bannerRes.value.data();
+                if (JSON.stringify(newBanner) !== initialBannerStr) {
+                    window.bannerSettings = newBanner;
+                    settingsChanged = true;
+                }
             }
             if (seasonalRes.status === 'fulfilled' && seasonalRes.value.exists) {
-                window.seasonalSettings = seasonalRes.value.data();
+                newSeasonal = seasonalRes.value.data();
+                if (JSON.stringify(newSeasonal) !== initialSeasonalStr) {
+                    window.seasonalSettings = newSeasonal;
+                    settingsChanged = true;
+                }
             }
-            if (metaRes.status === 'fulfilled' && metaRes.value.exists && metaRes.value.data().lastUpdated) {
-                cloudLastUpdated = Number(metaRes.value.data().lastUpdated) || 0;
+            if (metaRes.status === 'fulfilled') {
+                metaFetchedOk = true;
+                if (metaRes.value.exists && metaRes.value.data().lastUpdated) {
+                    cloudLastUpdated = Number(metaRes.value.data().lastUpdated) || 0;
+                }
+            }
+
+            if (settingsChanged) {
+                try {
+                    localStorage.setItem('acc_catalog_settings_v2', JSON.stringify({
+                        banner: newBanner,
+                        seasonal: newSeasonal
+                    }));
+                } catch (e) {}
             }
         } catch (error) {
-            console.error("Error fetching settings:", error);
+            console.warn("Firestore settings/meta check timed out or failed; keeping instant catalog:", error);
+            if (renderedInitial) return;
         }
 
-        // Check smart versioned local cache (saves ~1,800 reads when no admin changes occurred)
-        if (cloudLastUpdated > 0) {
-            try {
-                const cachedTs = Number(localStorage.getItem('acc_catalog_ts_v2')) || 0;
-                const cachedStr = localStorage.getItem('acc_catalog_cache_v2');
-                if (cachedTs === cloudLastUpdated && cachedStr) {
-                    const cachedProducts = JSON.parse(cachedStr);
-                    if (Array.isArray(cachedProducts) && cachedProducts.length > 0) {
-                        products = cachedProducts;
-                        console.log(`Loaded ${products.length} products from smart cache (1 read used instead of ${products.length}).`);
-                        initDynamicCategories();
-                        applyFilters();
-                        return;
-                    }
-                }
-            } catch (cacheErr) {
-                console.warn("Smart cache read skipped:", cacheErr);
+        // Smart cache hit: preserves 1-read Firebase savings! Only refresh if banner/seasonal changed.
+        if (cloudLastUpdated > 0 && cachedTs === cloudLastUpdated && renderedInitial) {
+            console.log(`Smart cache up-to-date (1 read used instead of ${products.length}).`);
+            if (settingsChanged) {
+                const savedScrollY = window.scrollY;
+                applyFilters();
+                if (savedScrollY > 0) window.scrollTo(0, savedScrollY);
             }
+            return;
         }
 
-        console.log("Fetching products database from Firebase Firestore...");
+        // If Firestore meta check failed (e.g. 503 outage) and catalog is already visible, stop cleanly
+        if (!metaFetchedOk && renderedInitial) {
+            console.warn("Firestore unavailable; keeping instant catalog active.");
+            return;
+        }
+
+        console.log("Syncing latest products database from Firebase Firestore...");
         try {
-            const querySnapshot = await window.db.collection("products").get();
+            const querySnapshot = await withTimeout(window.db.collection("products").get(), 15000);
             let fbProducts = [];
             querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                fbProducts.push(data);
+                fbProducts.push(doc.data());
             });
             
             if (fbProducts.length > 0) {
                 products = fbProducts;
-                console.log(`Loaded ${products.length} products from Firebase.`);
+                console.log(`Synced ${products.length} products from Firebase.`);
                 try {
                     const tsToSave = cloudLastUpdated || Date.now();
                     if (!cloudLastUpdated) {
@@ -141,51 +226,25 @@ async function fetchProducts() {
                 } catch (saveErr) {
                     console.warn("Could not save smart cache:", saveErr);
                 }
+                const savedScrollY = window.scrollY;
                 initDynamicCategories();
                 applyFilters();
+                updateCartUI();
+                if (savedScrollY > 0) window.scrollTo(0, savedScrollY);
                 return;
             } else {
-                console.warn("Firebase collection 'products' is empty. Falling back to local files.");
+                console.warn("Firebase collection 'products' is empty. Keeping local catalog.");
+                if (renderedInitial) return;
             }
         } catch (error) {
-            console.error("Firebase fetch failed, falling back to local files:", error);
+            console.warn("Firebase background sync failed; keeping instant catalog:", error);
+            if (renderedInitial) return;
         }
     }
 
-    // 1.5 Fallback to most recent smart cache in localStorage if Firebase is offline/quota reached
-    try {
-        const cachedStr = localStorage.getItem('acc_catalog_cache_v2');
-        if (cachedStr) {
-            const cachedProducts = JSON.parse(cachedStr);
-            if (Array.isArray(cachedProducts) && cachedProducts.length > 0) {
-                products = cachedProducts;
-                console.log(`Loaded ${products.length} products from localStorage fallback cache.`);
-                initDynamicCategories();
-                applyFilters();
-                return;
-            }
-        }
-    } catch (e) {}
+    if (renderedInitial) return;
 
-    // 2. Fallback to local productsData global variable
-    if (window.productsData) {
-        console.log("Loaded products database from local productsData variable.");
-        products = window.productsData;
-        initDynamicCategories();
-        applyFilters();
-        return;
-    }
-
-    // 3. Fallback to PRODUCTS_DATA
-    if (window.PRODUCTS_DATA) {
-        console.log("Loaded products database from local PRODUCTS_DATA script tag.");
-        products = window.PRODUCTS_DATA;
-        initDynamicCategories();
-        applyFilters();
-        return;
-    }
-
-    // 4. Fallback to local fetch of products.json
+    // 3. Final fallback to local fetch of products.json
     try {
         const response = await fetch('public/data/products.json');
         if (!response.ok) {
@@ -194,12 +253,13 @@ async function fetchProducts() {
         products = await response.json();
         initDynamicCategories();
         applyFilters();
+        updateCartUI();
     } catch (error) {
         console.error("Could not fetch products database:", error);
         elements.productsGrid.innerHTML = `
             <div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: #ff5555;">
                 <h3>Error al cargar los catálogos</h3>
-                <p>Por favor asegúrate de haber ejecutado el script de extracción de datos (extract_data.py) o de cargar la página mediante un servidor web local.</p>
+                <p>Por favor recarga la página para volver a intentarlo.</p>
             </div>
         `;
     }
@@ -490,15 +550,16 @@ function applyFilters() {
     // Render first page
     renderNextPage();
     
-    // Handle deep linking on first load
+    // Handle deep linking on first load (retries once after background sync if product is brand new)
     if (!window.deepLinkHandled) {
-        window.deepLinkHandled = true;
         const urlParams = new URLSearchParams(window.location.search);
         const productId = urlParams.get('producto');
-        if (productId) {
+        if (!productId) {
+            window.deepLinkHandled = true;
+        } else {
             const prod = products.find(p => p.code === productId);
             if (prod) {
-                // Short delay to ensure rendering completes
+                window.deepLinkHandled = true;
                 setTimeout(() => openModal(prod), 300);
             }
         }
