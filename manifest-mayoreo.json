@@ -1,0 +1,30 @@
+{
+  "name": "Accesorizate Mayoreo",
+  "short_name": "Accesorizate",
+  "description": "Catálogo de Mayoreo Accesorizate Joyería",
+  "start_url": "./mayoreo.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#35363A",
+  "icons": [
+    {
+      "src": "logo/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "logo/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "logo/app-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
